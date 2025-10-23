@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Chat State</title>
+  <style>
+    body {
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+      padding: 40px;
+    }
+    button {
+      background: #f00;
+      color: #fff;
+      padding: 20px;
+      font-size: 20px;
+      border: none;
+      cursor: pointer;
+      margin: 10px;
+    }
+    button:hover {
+      background: #ff6666;
+    }
+    .success {
+      background: #0f0;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔧 LongStrider Debug Tools</h1>
+  
+  <button onclick="clearChatMessages()">Clear Chat Messages Only</button>
+  <button onclick="clearAllStores()">Clear All Zustand Stores</button>
+  <button onclick="clearEverything()">NUCLEAR: Clear Everything</button>
+  
+  <div id="output"></div>
+  
+  <script>
+    function log(msg) {
+      document.getElementById('output').innerHTML += msg + '<br>';
+    }
+    
+    function clearChatMessages() {
+      localStorage.removeItem('ivy.chat.v8');
+      log('✅ Cleared chat messages');
+      setTimeout(() => location.href = '/cognitive', 1000);
+    }
+    
+    function clearAllStores() {
+      localStorage.removeItem('ivy.chat.v8');
+      localStorage.removeItem('consciousness-store-v3');
+      localStorage.removeItem('memory-store-v2');
+      localStorage.removeItem('ui-store-v1');
+      log('✅ Cleared all Zustand stores');
+      setTimeout(() => location.href = '/', 1000);
+    }
+    
+    function clearEverything() {
+      const keys = Object.keys(localStorage);
+      const config = {
+        url: localStorage.getItem('ivy_supabase_url'),
+        key: localStorage.getItem('ivy_supabase_key'),
+        userId: localStorage.getItem('ivy_user_id')
+      };
+      
+      localStorage.clear();
+      
+      // Restore config
+      if (config.url) localStorage.setItem('ivy_supabase_url', config.url);
+      if (config.key) localStorage.setItem('ivy_supabase_key', config.key);
+      if (config.userId) localStorage.setItem('ivy_user_id', config.userId);
+      
+      log('💥 NUCLEAR CLEAR - Kept config only');
+      log('Redirecting to homepage...');
+      setTimeout(() => location.href = '/', 1000);
+    }
+  </script>
+</body>
+</html>

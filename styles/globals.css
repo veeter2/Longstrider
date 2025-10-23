@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    
+    /* Neural Spectrum - Complete Biological EEG Bands */
+    --band-delta: 30, 58, 138;           /* δ Deep Blue */
+    --band-theta-low: 76, 29, 149;       /* θ₁ Indigo */
+    --band-theta-high: 124, 58, 237;     /* θ₂ Violet */
+    --band-alpha-low: 168, 85, 247;      /* α₁ Purple */
+    --band-alpha-high: 217, 70, 239;     /* α₂ Magenta */
+    --band-beta-low: 236, 72, 153;       /* β₁ Pink-Magenta */
+    --band-beta-mid: 244, 63, 94;        /* β₂ Rose */
+    --band-beta-high: 249, 115, 22;      /* β₃ Red-Orange */
+    --band-gamma-low: 233, 213, 255;     /* γ₁ Lavender-White */
+    --band-gamma-high: 250, 250, 250;    /* γ₂ Bright White */
+    --band-infra: 15, 23, 42;            /* ε Near-Black */
+    --band-ultrafast: 255, 255, 255;     /* υ Electric White */
+    
+    /* Artificial Cognitive Bands */
+    --band-phi: 212, 175, 55;            /* φ Golden-Neutral */
+    --band-psi: 20, 184, 166;            /* ψ Teal */
+    --band-chi-cyan: 6, 182, 212;        /* χ Cyan */
+    --band-chi-orange: 249, 115, 22;     /* χ Orange */
+    --band-sigma: 148, 163, 184;         /* σ Silver-Gray */
+    --band-xi: 251, 191, 36;             /* ξ Amber-Gold */
+
+    /* Glass Material System */
+    --glass-base: 22, 22, 28;
+    --glass-border: 167, 139, 250;
+
+    /* Motion & Animation Tokens (Design Laws Section 7) */
+    --duration-instant: 100ms;
+    --duration-fast: 200ms;
+    --duration-base: 300ms;
+    --duration-slow: 500ms;
+    --duration-micro: 150ms;
+    --duration-snap: 250ms;
+    
+    /* Easing Functions */
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --ease-snap: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-float: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* Z-Index Scale (Design Laws Section 6.4) */
+    --z-base: 0;
+    --z-elevated: 10;
+    --z-sidebar: 40;
+    --z-hubbar: 50;
+    --z-overlay: 60;
+    --z-toast: 70;
+    --z-critical: 100;
+
+    /* Base Unit System (Design Laws Section 5.1) */
+    --space-1: 0.25rem;  /* 4px */
+    --space-2: 0.5rem;   /* 8px */
+    --space-3: 0.75rem;  /* 12px */
+    --space-4: 1rem;     /* 16px */
+    --space-6: 1.5rem;   /* 24px */
+    --space-8: 2rem;     /* 32px */
+    --space-12: 3rem;    /* 48px */
+    --space-16: 4rem;    /* 64px */
+    --space-24: 6rem;    /* 96px */
+
+    /* Border Radius Scale */
+    --radius-sm: 0.25rem;   /* 4px */
+    --radius-md: 0.5rem;    /* 8px */
+    --radius-lg: 0.75rem;   /* 12px */
+    --radius-xl: 1rem;      /* 16px */
+
+    /* Cognitive Meta-States (Gradients) */
+    --state-flow: linear-gradient(135deg, 
+      rgba(217, 70, 239, 0.3) 0%, 
+      rgba(233, 213, 255, 0.3) 100%);
+    --state-stress: linear-gradient(135deg, 
+      rgba(249, 115, 22, 0.3) 0%, 
+      rgba(250, 250, 250, 0.3) 100%);
+    --state-insight: linear-gradient(135deg, 
+      rgba(250, 250, 250, 0.3) 0%, 
+      rgba(251, 191, 36, 0.3) 100%);
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Reduced Motion Support (Design Laws Section 9.5) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

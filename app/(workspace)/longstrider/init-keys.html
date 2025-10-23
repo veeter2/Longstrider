@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Set LongStrider Keys</title>
+</head>
+<body>
+  <h1>Set Your Keys</h1>
+  <input type="text" id="userId" placeholder="User ID" style="width: 100%; margin: 10px 0; padding: 10px;">
+  <input type="text" id="memoryId" placeholder="Memory Trace ID" style="width: 100%; margin: 10px 0; padding: 10px;">
+  <input type="text" id="supabaseUrl" placeholder="Supabase URL" style="width: 100%; margin: 10px 0; padding: 10px;">
+  <input type="text" id="supabaseKey" placeholder="Supabase Key" style="width: 100%; margin: 10px 0; padding: 10px;">
+  <button onclick="save()" style="padding: 10px 20px; font-size: 16px;">SAVE</button>
+  <div id="result"></div>
+
+  <script>
+    function save() {
+      const userId = document.getElementById('userId').value
+      const memoryId = document.getElementById('memoryId').value
+      const supabaseUrl = document.getElementById('supabaseUrl').value
+      const supabaseKey = document.getElementById('supabaseKey').value
+
+      localStorage.setItem('ls_user_id', userId)
+      localStorage.setItem('ls_memory_trace_id', memoryId)
+      localStorage.setItem('ls_supabase_url', supabaseUrl)
+      localStorage.setItem('ls_supabase_key', supabaseKey)
+
+      // Auto-create session
+      let sessionId = localStorage.getItem('ls_session_id')
+      if (!sessionId) {
+        sessionId = crypto.randomUUID()
+        localStorage.setItem('ls_session_id', sessionId)
+      }
+
+      document.getElementById('result').innerHTML = `
+        <h2>SAVED!</h2>
+        <p>ls_user_id: ${localStorage.getItem('ls_user_id')}</p>
+        <p>ls_memory_trace_id: ${localStorage.getItem('ls_memory_trace_id')}</p>
+        <p>ls_session_id: ${localStorage.getItem('ls_session_id')}</p>
+        <p>ls_supabase_url: ${localStorage.getItem('ls_supabase_url')}</p>
+        <p>ls_supabase_key: ${localStorage.getItem('ls_supabase_key')?.substring(0, 20)}...</p>
+      `
+    }
+  </script>
+</body>
+</html>
