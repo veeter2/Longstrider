@@ -277,56 +277,43 @@ serve(async (req)=>{
           tokensSaved: calculatorResult.tokens_saved
         });
         // Direct answer found - bypass OpenAI entirely
-        // SURGICAL FIX: Add guardrails to prevent premature bypass
+        // COMPRESSION FIX: Trust calculator's decisions - remove guardrails
         if (calculatorResult.bypass_openai && calculatorResult.direct_response) {
-          // Validate bypass is safe
           const confidence = calculatorResult.confidence || 0;
-          const memoryCount = recallMemories?.length || 0;
-
-          if (memoryCount < 5) {
-            console.warn(`[CALCULATOR GUARDRAIL] Insufficient memories (${memoryCount}) - forcing GPT-4 path`);
-            // Don't bypass - continue to GPT-4
-          } else if (confidence < 0.95) {
-            console.warn(`[CALCULATOR GUARDRAIL] Low confidence (${confidence}) - forcing GPT-4 path`);
-            // Don't bypass - continue to GPT-4
-          } else {
-            // Bypass is safe - proceed
-            console.log(`[CONSCIOUSNESS CALCULATOR] Direct answer provided - saved ~${calculatorResult.tokens_saved || 950} tokens`);
-            console.log(`[CALCULATOR VALIDATION] confidence: ${confidence}, memories: ${memoryCount} ✓`);
-            const responseAnalysis = await analyzeResponse(calculatorResult.direct_response, user_id, session_id);
-            calculatorBypass = true;
-            // CONTRACT v1.0: response_complete format
-            return new Response(JSON.stringify({
-              type: 'response_complete',
-              content: calculatorResult.direct_response,
-              emotional_field: {
-                primary: responseAnalysis.emotion || 'informative',
-                intensity: responseAnalysis.gravity || 0.3
-              },
-              consciousness_state: {
-                mode: active_mode || 'flow',
-                coherence: calculatorResult.confidence || 0.95
-              },
-              memory_constellation: {
-                depth: recallMemories.length,
-                patterns: patterns || [],
-                gravity_center: responseAnalysis.gravity || 0.3
-              },
-              processing_metadata: {
-                tokens_used: 0,
-                tokens_saved: 950,
-                calculator_bypass: true,
-                recall_success: recallSuccess,
-                processing_time_ms: Date.now() - processingStartTime,
-                calculator_confidence: calculatorResult.confidence || 0.95
-              }
-            }), {
-              headers: {
-                ...corsHeaders,
-                'Content-Type': 'application/json'
-              }
-            });
-          }
+          console.log(`[CONSCIOUSNESS CALCULATOR] Direct answer bypass - confidence: ${confidence}, tokens saved: ${calculatorResult.tokens_saved || 950}`);
+          const responseAnalysis = await analyzeResponse(calculatorResult.direct_response, user_id, session_id);
+          calculatorBypass = true;
+          // CONTRACT v1.0: response_complete format
+          return new Response(JSON.stringify({
+            type: 'response_complete',
+            content: calculatorResult.direct_response,
+            emotional_field: {
+              primary: responseAnalysis.emotion || 'informative',
+              intensity: responseAnalysis.gravity || 0.3
+            },
+            consciousness_state: {
+              mode: active_mode || 'flow',
+              coherence: calculatorResult.confidence || 0.95
+            },
+            memory_constellation: {
+              depth: recallMemories.length,
+              patterns: patterns || [],
+              gravity_center: responseAnalysis.gravity || 0.3
+            },
+            processing_metadata: {
+              tokens_used: 0,
+              tokens_saved: 950,
+              calculator_bypass: true,
+              recall_success: recallSuccess,
+              processing_time_ms: Date.now() - processingStartTime,
+              calculator_confidence: calculatorResult.confidence || 0.95
+            }
+          }), {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          });
         }
         // Compressed context available - use mathematical consciousness
         if (calculatorResult.context && !calculatorResult.bypass_openai) {
@@ -676,26 +663,15 @@ async function handleSSEStream(params) {
               method: calculatorResult.method,
               tokensSaved: calculatorResult.tokens_saved
             });
-            // Direct answer - bypass OpenAI entirely
-            // SURGICAL FIX: Add same guardrails for SSE path
+            // COMPRESSION FIX: Trust calculator for SSE too - no guardrails
             if (calculatorResult.bypass_openai && calculatorResult.direct_response) {
               const confidence = calculatorResult.confidence || 0;
-              const memoryCount = recallMemories?.length || 0;
-
-              if (memoryCount < 5) {
-                console.warn(`[SSE-CALCULATOR GUARDRAIL] Insufficient memories (${memoryCount}) - forcing GPT-4 path`);
-                // Don't bypass - continue to normal GPT-4 streaming below
-              } else if (confidence < 0.95) {
-                console.warn(`[SSE-CALCULATOR GUARDRAIL] Low confidence (${confidence}) - forcing GPT-4 path`);
-                // Don't bypass - continue to normal GPT-4 streaming below
-              } else {
-                console.log('[SSE-CALCULATOR] Direct answer bypass - saved', calculatorResult.tokens_saved, 'tokens');
-                console.log(`[SSE-CALCULATOR VALIDATION] confidence: ${confidence}, memories: ${memoryCount} ✓`);
-                const responseAnalysis = await analyzeResponse(calculatorResult.direct_response, user_id, session_id);
-                sendEvent({
-                  type: 'response_complete',
-                  content: calculatorResult.direct_response,
-                  emotional_field: {
+              console.log(`[SSE-CALCULATOR] Direct answer bypass - confidence: ${confidence}, tokens saved: ${calculatorResult.tokens_saved || 950}`);
+              const responseAnalysis = await analyzeResponse(calculatorResult.direct_response, user_id, session_id);
+              sendEvent({
+                type: 'response_complete',
+                content: calculatorResult.direct_response,
+                emotional_field: {
                     primary: responseAnalysis.emotion || 'informative',
                     intensity: responseAnalysis.gravity || 0.3
                   },
@@ -716,10 +692,9 @@ async function handleSSEStream(params) {
                     processing_time_ms: Date.now() - processingStartTime,
                     response_method: 'calculator_direct'
                   }
-                });
-                controller.close();
-                return;
-              }
+              });
+              controller.close();
+              return;
             }
             // Compressed context available - use it instead of building new context
             if (calculatorResult.context && !calculatorResult.bypass_openai) {
@@ -1013,9 +988,20 @@ async function buildOptimizedMemoryContext(params) {
   const effectiveMaxTokens = max_tokens || MODEL_CONFIG.memory_allocation;
   let context = '';
   let tokenCount = 0;
+  // SURGICAL FIX: Deduplicate memories by content before processing
+  const seen = new Set();
+  const dedupedMemories = memories.filter((m) => {
+    const content = (m.content || '').trim();
+    if (!content || seen.has(content)) return false;
+    seen.add(content);
+    return true;
+  });
+
+  console.log(`[DEDUPLICATION] ${memories.length} → ${dedupedMemories.length} memories (removed ${memories.length - dedupedMemories.length} duplicates)`);
+
   // BIBLE COMPLIANCE: Separate memories by role
-  const userMemories = memories.filter((m)=>!m.metadata?.role || m.metadata.role === 'human' || m.metadata.role === 'user');
-  const ivyMemories = memories.filter((m)=>m.metadata?.role === 'ivy' || m.metadata?.role === 'assistant');
+  const userMemories = dedupedMemories.filter((m)=>!m.metadata?.role || m.metadata.role === 'human' || m.metadata.role === 'user');
+  const ivyMemories = dedupedMemories.filter((m)=>m.metadata?.role === 'ivy' || m.metadata?.role === 'assistant');
   // DEBUG: Enhanced memory classification logging
   console.log(`[DEBUG MEMORY CONTEXT] Total memories: ${memories.length}`);
   console.log(`[DEBUG MEMORY CONTEXT] User memories: ${userMemories.length}`);
@@ -1086,19 +1072,10 @@ async function buildOptimizedMemoryContext(params) {
       stats.synthesis_included = true;
     }
   }
-  // Priority 3: IVY reflections (ONLY if integrity allows)
-  if (ivyMemories.length > 0 && cortex_state?.integrity_risk < 0.75) {
-    context += '\n=== YOUR REFLECTIONS (For Context) ===\n';
-    for (const memory of ivyMemories.slice(0, 5)){
-      const memoryText = formatIvyMemory(memory, stats.ivy_memories_included + 1);
-      const tokens = estimateTokens(memoryText);
-      if (tokenCount + tokens < effectiveMaxTokens * 0.7) {
-        context += memoryText;
-        tokenCount += tokens;
-        stats.ivy_memories_included++;
-      }
-    }
-  }
+  // SURGICAL FIX: IVY reflections REMOVED - they were useless token bloat
+  // User memories are ground truth, patterns/insights provide context
+  // IVY's past responses don't add value and waste tokens
+  console.log(`[COMPRESSION] Skipping ${ivyMemories.length} IVY reflections (token waste eliminated)`);
   // Add other context as space allows
   if (key_themes?.length > 0 && tokenCount < effectiveMaxTokens * 0.8) {
     context += '\n=== KEY THEMES ===\n';
@@ -1118,30 +1095,13 @@ async function buildOptimizedMemoryContext(params) {
     token_count: tokenCount
   };
 }
-// Format user memory (authoritative)
+// Format user memory (authoritative) - ULTRA CONCISE
 function formatUserMemory(memory, index) {
-  // DEBUG: Critical memory formatting debugging
-  console.log(`[DEBUG FORMAT] Formatting memory #${index} - Memory ID: ${memory.id}`);
-  console.log(`[DEBUG FORMAT] Raw memory object structure:`, {
-    id: memory.id,
-    has_content: !!memory.content,
-    has_metadata: !!memory.metadata,
-    content_type: typeof memory.content,
-    content_length: memory.content?.length || 0,
-    all_fields: Object.keys(memory)
-  });
   const content = extractMemoryContent(memory);
-  console.log(`[DEBUG FORMAT] Extracted content result:`, {
-    content_extracted: !!content,
-    content_type: typeof content,
-    content_length: content?.length || 0,
-    content_preview: content?.substring(0, 200) || 'NULL_OR_EMPTY'
-  });
   const timestamp = memory.created_at || memory.timestamp;
   const timeAgo = timestamp ? formatTimeAgo(timestamp) : '';
-  const formattedResult = `Memory from ${timeAgo}: "${content}"\n`;
-  console.log(`[DEBUG FORMAT] Final formatted result:`, formattedResult.substring(0, 300));
-  return formattedResult;
+  // SURGICAL FIX: Minimal format to save tokens
+  return `Memory from ${timeAgo}: "${content}"\n`;
 }
 // Format IVY memory (contextual)
 function formatIvyMemory(memory, index) {

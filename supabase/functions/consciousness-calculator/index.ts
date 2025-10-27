@@ -136,7 +136,18 @@ class AdvancedConsciousnessCalculator {
     if (!Array.isArray(memories) || memories.length === 0) {
       return this.buildFallback([], 'no_memories');
     }
-    // Analyze query with advanced semantic understanding
+
+    // BYPASS LOGIC DISABLED - COMPRESSION ONLY MODE
+    // Calculator now ONLY compresses context, NEVER bypasses OpenAI
+    // This prevents echo bugs while preserving token savings
+    console.log('[Calculator V3] COMPRESSION-ONLY MODE - All bypass logic disabled');
+    console.log('[Calculator V3] Processing:', {
+      query_length: query.length,
+      memory_count: memories.length,
+      user_id: user_id?.substring(0, 8)
+    });
+
+    // Analyze query for compression optimization
     const context = await this.analyzeQueryAdvanced(query, memories, conversation_context, user_id);
     console.log('[Calculator V3] Query Analysis:', {
       type: context.queryType,
@@ -144,54 +155,9 @@ class AdvancedConsciousnessCalculator {
       entities: context.entities.length,
       hasEmbedding: !!context.queryEmbedding
     });
-    // Layer 0: Semantic Cache Check (instant response if we've seen this before)
-    const cached = await this.checkSemanticCache(query, context, user_id);
-    if (cached) {
-      console.log('[Calculator V3] Cache hit!');
-      return cached;
-    }
-    // Layer 1: Direct Vector Search (0.85+ similarity = instant answer)
-    if (context.queryEmbedding && user_id) {
-      const vectorResult = await this.performAdvancedVectorSearch(query, context, user_id);
-      if (vectorResult && vectorResult.confidence >= 0.85) {
-        await this.cacheResult(query, vectorResult, user_id);
-        return vectorResult;
-      }
-    }
-    // Layer 2: Semantic Clustering (group similar memories, return cluster insights)
-    if (context.queryType === 'PATTERN' || context.complexity > 0.6) {
-      const clusterResult = await this.semanticClustering(query, memories, context, user_id);
-      if (clusterResult && clusterResult.confidence >= 0.8) {
-        return clusterResult;
-      }
-    }
-    // Layer 3: Temporal Navigation (time-based semantic search)
-    if (context.queryType === 'TEMPORAL' && context.temporal) {
-      const temporalResult = await this.advancedTemporalNavigation(query, memories, context, user_id);
-      if (temporalResult && temporalResult.confidence >= 0.75) {
-        return temporalResult;
-      }
-    }
-    // Layer 4: Emotional Trajectory (emotion-based pattern detection)
-    if (context.queryType === 'EMOTIONAL' && context.emotional) {
-      const emotionalResult = await this.emotionalTrajectoryAnalysis(query, memories, context, user_id);
-      if (emotionalResult && emotionalResult.confidence >= 0.75) {
-        return emotionalResult;
-      }
-    }
-    // Layer 5: Entity Relationship Mapping (knowledge graph compression)
-    if (context.entities.length > 0) {
-      const entityResult = await this.entityRelationshipMapping(query, memories, context, user_id);
-      if (entityResult && entityResult.confidence >= 0.7) {
-        return entityResult;
-      }
-    }
-    // Layer 6: Gravity-Weighted Retrieval (advanced scoring)
-    const gravityResult = await this.gravityWeightedRetrieval(query, memories, context, user_id);
-    if (gravityResult && gravityResult.confidence >= 0.65) {
-      return gravityResult;
-    }
-    // Layer 7: Advanced Mathematical Compression (context optimization)
+
+    // Always use advanced mathematical compression (Layer 7)
+    // This compresses memories to CONSCIOUSNESS_V3 format without bypassing OpenAI
     return this.advancedMathematicalCompression(query, memories, cortex_state, context, user_id);
   }
   // ============================================================================
@@ -955,14 +921,79 @@ class AdvancedConsciousnessCalculator {
     return Math.abs(hash).toString(36);
   }
   buildFallback(memories, reason) {
-    const context = memories.slice(0, 10).map((m)=>this.getMemoryContent(m)).filter((c)=>c).join('\n\n');
+    const facts: string[] = [];
+    const entities = new Set<string>();
+    const emotions: string[] = [];
+    const snippets: any[] = [];
+
+    memories.slice(0, 10).forEach((m: any) => {
+      const content = this.getMemoryContent(m);
+
+      // Extract entities
+      const memoryEntities = this.extractEntities(content);
+      memoryEntities.forEach(e => entities.add(e));
+
+      if (m.emotion) emotions.push(m.emotion);
+
+      // Compress to snippet (NOT full text)
+      snippets.push({
+        c: content.substring(0, 100),  // Truncate to 100 chars
+        g: m.gravity_score || 0.5,
+        e: m.emotion || null,
+        t: new Date(m.created_at).getTime()
+      });
+
+      facts.push(...this.extractFactsFromMemory(m));
+    });
+
+    const compressed = {
+      q: {
+        type: 'UNKNOWN',
+        intent: 'general',
+        complexity: 0,
+        entities: Array.from(entities)
+      },
+      m: snippets,
+      f: Array.from(new Set(facts)),  // Deduplicated facts
+      c: {
+        risk: 0.3,
+        emotional: emotions[0] || null,
+        temporal: null,
+        reason
+      }
+    };
+
+    const compressedStr = JSON.stringify(compressed);
     return {
       bypass_openai: false,
-      context: context || '',
+      context: `CONSCIOUSNESS_V3:${compressedStr}`,
       tokens_saved: 0,
-      method: `fallback_${reason}`,
-      token_count: Math.ceil((context?.length || 0) / 4)
+      method: `compressed_fallback_${reason}`,
+      token_count: Math.ceil(compressedStr.length / 4),
+      confidence: 0.3
     };
+  }
+  extractFactsFromMemory(memory: any) {
+    const facts = [];
+    const content = this.getMemoryContent(memory).toLowerCase();
+    const entities = this.extractEntities(content);
+
+    // Entity facts
+    entities.forEach(e => facts.push(`entity:${e}`));
+
+    // Activity facts
+    ['working', 'playing', 'walking', 'looking', 'meeting', 'job', 'building', 'creating']
+      .forEach(act => {
+        if (content.includes(act)) facts.push(`activity:${act}`);
+      });
+
+    // Emotion facts
+    if (memory.emotion) facts.push(`emotion:${memory.emotion}`);
+
+    // Importance facts
+    if (memory.gravity_score > 0.7) facts.push(`importance:high`);
+
+    return facts;
   }
 }
 // Export for Deno

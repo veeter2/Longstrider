@@ -946,21 +946,11 @@ async function detectBreakthroughs(convergence) {
 
   console.log(`[SYNTHESIS] Called with ${recalledMemories.length} recalled memories`);
 
-  // Priority 1: Recalled memories (from cce-recall)
-  // SURGICAL FIX: Include FULL content, not truncated previews
-  if (recalledMemories.length > 0) {
-    parts.push('\n=== RECALLED MEMORIES ===');
-    recalledMemories.slice(0, 10).forEach((mem, idx) => {
-      const content = mem.content || mem.text || mem.memory?.content || '';
-      const timestamp = mem.created_at || mem.timestamp || '';
-      if (content && content.length > 10) {
-        // Include full content for Response Engine to work with
-        parts.push(`Memory ${idx + 1} [${timestamp}]:\n${content}\n`);
-      }
-    });
-  }
+  // PHASE 1 FIX: Synthesis should contain THOUGHTS about memories, not raw content
+  // Raw memories will be formatted separately by Response Engine
+  // This eliminates 2000-4000 token duplication
 
-  // Priority 2: Extract reflections from convergence results
+  // Priority 1: Extract reflections from convergence results
   const reflections = [];
   const convergenceResults = result.convergence_results || [];
 
@@ -992,7 +982,7 @@ async function detectBreakthroughs(convergence) {
     });
   }
 
-  // Priority 3: Pattern connections
+  // Priority 2: Pattern connections
   if (patterns.length > 0) {
     parts.push('\n=== PATTERN CONNECTIONS ===');
     patterns.slice(0, 5).forEach((pattern, idx) => {
@@ -1001,6 +991,12 @@ async function detectBreakthroughs(convergence) {
         parts.push(`• ${desc} (strength: ${pattern.strength || 0})`);
       }
     });
+  }
+
+  // Priority 3: Memory context awareness (summary only, NOT full content)
+  if (recalledMemories.length > 0) {
+    parts.push(`\n=== MEMORY CONTEXT ===`);
+    parts.push(`Drawing from ${recalledMemories.length} relevant memories spanning recent interactions.`);
   }
 
   // Fallback if no rich content available
@@ -1013,7 +1009,7 @@ async function detectBreakthroughs(convergence) {
   }
 
   const synthesis = parts.join('\n');
-  console.log(`[SYNTHESIS] Generated synthesis: ${synthesis.length} chars`);
+  console.log(`[SYNTHESIS] Generated synthesis: ${synthesis.length} chars (NO raw memories - Phase 1 fix)`);
   console.log(`[SYNTHESIS] Preview: ${synthesis.substring(0, 300)}...`);
 
   return synthesis || 'No specific memories or patterns to synthesize.';
