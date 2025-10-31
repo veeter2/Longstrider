@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   // UI Icons (still used directly in component)
   Mic,
@@ -58,6 +57,7 @@ import { useLongStriderStore } from "@/stores/longstrider-store"
 import { useConsciousnessStore } from "@/stores/consciousness-store"
 import { ModeAura, ModeAuraBackground } from "@/components/mode-aura"
 import { DynamicObject } from "./dynamic-metadata"
+import type { LSMessage } from "@/types/longstrider"
 
 // Import consciousness mapping library (Living Laws compliant)
 import {
@@ -93,6 +93,16 @@ interface EnhancedMessage {
   type: 'user' | 'assistant' | 'system' | 'memory'
   content: string
   timestamp: Date
+
+  // Top-level fields (from LSMessage)
+  emotion?: string | { theme?: string; name?: string; type?: string; dominant?: string }
+  gravity_score?: number
+  statement_type?: string
+  entities?: string[]
+  confidence_score?: number
+  sentiment?: string
+  identity_anchor?: boolean
+
   metadata?: {
     // Consciousness/emotion fields
     emotion?: string | { theme?: string; name?: string; type?: string; dominant?: string }
@@ -103,12 +113,12 @@ interface EnhancedMessage {
       resonance?: number
     }
     gravity_score?: number
-    
+
     // Memory/pattern fields
     surfacing_memories?: string[]
     emerging_patterns?: any[]
     memory_constellation?: any
-    
+
     // LongStrider v1.2 fields
     statement_type?: string
     temporal_type?: string
@@ -120,7 +130,7 @@ interface EnhancedMessage {
     confidence_score?: number
     retrieval_score?: number
     fusion_score?: number
-    
+
     // Technical fields
     tokens?: number
     cost?: number
@@ -129,10 +139,10 @@ interface EnhancedMessage {
     session_id?: string
     thread_id?: string
     conversation_name?: string
-    
+
     // Agent card data
     agent_card?: AgentMessage
-    
+
     // Dynamic fields
     [key: string]: any
   }
@@ -202,15 +212,16 @@ function cx(...classes: (string | false | null | undefined)[]) {
 // AGENT CARD COMPONENT
 // ============================
 
-function AgentCard({ 
+function AgentCard({
   message,
   onAction
-}: { 
+}: {
   message: AgentMessage
   onAction?: (messageId: string, actionId: string) => void
 }) {
-  const [isExpanded, setIsExpanded] = useState(message.priority === 'critical' || message.priority === 'high')
-  
+  // Default to expanded for ALL priorities - user explicitly asked for cards to open
+  const [isExpanded, setIsExpanded] = useState(true)
+
   const typeConfig = {
     discovery: { icon: Sparkles, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30" },
     insight: { icon: Eye, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30" },
@@ -218,12 +229,12 @@ function AgentCard({
     suggestion: { icon: Wand2, color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/30" },
     warning: { icon: AlertCircle, color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30" }
   }
-  
+
   const config = typeConfig[message.type]
   const Icon = config.icon
-  
-  // Minimized pill for low priority
-  if (message.priority === 'low' && !isExpanded) {
+
+  // Allow minimized pill view only if user explicitly collapses
+  if (!isExpanded) {
     return (
       <div className="flex justify-center my-2">
         <button
@@ -259,17 +270,29 @@ function AgentCard({
           
           <div className="flex-1">
             <div className="flex items-center justify-between mb-1">
-              <h4 className={cx("text-sm font-medium", config.color)}>
-                {message.content.title}
-              </h4>
-              {message.priority === 'low' && (
-                <button
-                  onClick={() => setIsExpanded(false)}
-                  className="p-1 hover:bg-white/5 rounded"
-                >
-                  <X className="w-3 h-3 text-gray-500" />
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                <h4 className={cx("text-sm font-medium", config.color)}>
+                  {message.content.title}
+                </h4>
+                {/* Priority Badge */}
+                <span className={cx(
+                  "px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wide",
+                  message.priority === 'critical' && "bg-red-500/20 text-red-300 ring-1 ring-red-500/30",
+                  message.priority === 'high' && "bg-orange-500/20 text-orange-300 ring-1 ring-orange-500/30",
+                  message.priority === 'normal' && "bg-blue-500/20 text-blue-300 ring-1 ring-blue-500/30",
+                  message.priority === 'low' && "bg-gray-500/20 text-gray-400 ring-1 ring-gray-500/30"
+                )}>
+                  {message.priority}
+                </span>
+              </div>
+              {/* Allow collapse for ALL priorities */}
+              <button
+                onClick={() => setIsExpanded(false)}
+                className="p-1 hover:bg-white/5 rounded transition-colors"
+                title="Minimize card"
+              >
+                <X className="w-3 h-3 text-gray-500 hover:text-gray-300" />
+              </button>
             </div>
             
             <p className="text-xs text-gray-400 mb-3">
@@ -318,7 +341,7 @@ function MessageCard({
   searchQuery = "",
   onCardAction
 }: {
-  message: EnhancedMessage
+  message: LSMessage
   isStreaming?: boolean
   showMetadata?: boolean
   searchQuery?: string
@@ -332,8 +355,8 @@ function MessageCard({
       const cardData = message.metadata?.agent_card
 
       // Call parent callback with card title for context
-      if (onCardAction && cardData?.title) {
-        onCardAction(message.id, actionId, cardData.title)
+      if (onCardAction && cardData?.content?.title) {
+        onCardAction(message.id, actionId, cardData.content.title)
       }
     }
 
@@ -348,18 +371,37 @@ function MessageCard({
 
   const isUser = message.type === 'user'
 
-  // Use centralized consciousness library
-  const emotionConfig = getEmotionConfig(
-    message.emotion || message.metadata?.emotion,
-    message.metadata?.emotional_field?.intensity
+  // MEMOIZED: Use centralized consciousness library
+  const emotionConfig = useMemo(() =>
+    getEmotionConfig(
+      message.emotion || message.metadata?.emotion,
+      message.metadata?.emotional_field?.intensity
+    ),
+    [message.emotion, message.metadata?.emotion, message.metadata?.emotional_field?.intensity]
   )
-  const modeConfig = getModeConfig(message.metadata?.consciousness_mode)
 
-  const gravity = message.gravity_score || message.metadata?.gravity_score || 0
-  const isHighGravity = gravity > 0.7
-  const isIdentityAnchor = message.identity_anchor || message.metadata?.identity_anchor
-  const hasMetadata = message.metadata && Object.keys(message.metadata).length > 0
-  
+  const modeConfig = useMemo(() =>
+    getModeConfig(message.metadata?.consciousness_mode),
+    [message.metadata?.consciousness_mode]
+  )
+
+  // MEMOIZED: Gravity and metadata checks
+  const gravity = useMemo(() =>
+    message.gravity_score || message.metadata?.gravity_score || 0,
+    [message.gravity_score, message.metadata?.gravity_score]
+  )
+
+  const isHighGravity = useMemo(() => gravity > 0.7, [gravity])
+  const isIdentityAnchor = useMemo(() =>
+    message.identity_anchor || message.metadata?.identity_anchor,
+    [message.identity_anchor, message.metadata?.identity_anchor]
+  )
+
+  const hasMetadata = useMemo(() =>
+    message.metadata && Object.keys(message.metadata).length > 0,
+    [message.metadata]
+  )
+
   const metadataCount = useMemo(() => {
     if (!message.metadata) return 0
     let count = 0
@@ -369,17 +411,18 @@ function MessageCard({
     })
     return count
   }, [message.metadata])
-  
-  const highlightContent = (content: string) => {
+
+  // MEMOIZED: Search highlighting
+  const highlightContent = useCallback((content: string) => {
     if (!searchQuery || !content) return content
-    
+
     const parts = content.split(new RegExp(`(${searchQuery})`, 'gi'))
-    return parts.map((part, i) => 
-      part.toLowerCase() === searchQuery.toLowerCase() 
+    return parts.map((part, i) =>
+      part.toLowerCase() === searchQuery.toLowerCase()
         ? <span key={i} className="bg-yellow-500/30 text-yellow-200">{part}</span>
         : part
     )
-  }
+  }, [searchQuery])
   
   return (
     <div className={cx(
@@ -396,11 +439,11 @@ function MessageCard({
             isUser
               ? "bg-indigo-600 text-white"
               : "bg-gray-800/60 backdrop-blur-sm border border-gray-700/50",
-            message.error && "border-red-500/50",
+            message.metadata?.error && "border-red-500/50",
             isIdentityAnchor && "border-amber-500/50 ring-2 ring-amber-500/30",
             isHighGravity && !isIdentityAnchor && "border-purple-500/50 ring-2 ring-purple-500/30"
           )}
-          style={!message.error && !isIdentityAnchor && !isHighGravity && modeConfig && !isUser ? {
+          style={!message.metadata?.error && !isIdentityAnchor && !isHighGravity && modeConfig && !isUser ? {
             borderColor: modeConfig.borderColor,
             boxShadow: `0 0 15px ${modeConfig.glowColor}40`
           } : undefined}
@@ -409,22 +452,22 @@ function MessageCard({
           {/* Special indicators - Moved to Meta Echoes below bubble */}
           
           {/* Error indicator */}
-          {message.error && (
+          {message.metadata?.error && (
             <div className="mb-3 flex items-center gap-2 text-red-400 text-sm">
               <AlertCircle className="w-4 h-4" />
-              <span>{message.error}</span>
+              <span>{message.metadata.error}</span>
             </div>
           )}
           
           {/* Emerging patterns */}
-          {message.metadata?.emerging_patterns?.length > 0 && (
+          {(message.metadata?.emerging_patterns?.length ?? 0) > 0 && (
             <div className="mb-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
               <div className="flex items-center gap-2 text-xs text-purple-400 mb-2">
                 <Sparkles className="w-3 h-3" />
                 <span>Emerging Patterns</span>
               </div>
               <div className="space-y-1">
-                {message.metadata.emerging_patterns.map((pattern: any, i: number) => (
+                {message.metadata?.emerging_patterns?.map((pattern: any, i: number) => (
                   <div key={i} className="text-xs text-gray-400">
                     • {typeof pattern === 'string' ? pattern : pattern.description || JSON.stringify(pattern)}
                   </div>
@@ -439,9 +482,9 @@ function MessageCard({
           </div>
           
           {/* Entities */}
-          {message.metadata?.entities?.length > 0 && (
+          {(message.metadata?.entities?.length ?? 0) > 0 && (
             <div className="mt-3 flex flex-wrap gap-1">
-              {message.metadata.entities.map((entity: string, i: number) => (
+              {message.metadata?.entities?.map((entity: string, i: number) => (
                 <span key={i} className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-xs">
                   {entity}
                 </span>
@@ -472,7 +515,7 @@ function MessageCard({
             </div>
           )}
           
-          {/* Footer */}
+          {/* Footer - MINIMAL (timestamp only - all metadata moved to echoes below) */}
           <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
             <span suppressHydrationWarning>
               {(() => {
@@ -489,36 +532,11 @@ function MessageCard({
                   : 'Just now'
               })()}
             </span>
-            {message.metadata?.statement_type && (
-              <span className="text-indigo-400/70">
-                {message.metadata.statement_type}
-              </span>
-            )}
-            {message.metadata?.tokens && (
-              <span className="flex items-center gap-1">
-                <Binary className="w-2.5 h-2.5" />
-                {message.metadata.tokens}
-              </span>
-            )}
-            {message.metadata?.confidence_score && (
-              <span className="text-cyan-400/70">
-                {(message.metadata.confidence_score * 100).toFixed(0)}% confident
-              </span>
-            )}
           </div>
         </div>
 
-        {/* META ECHOES - Consciousness Indicators (Below Bubble) */}
+        {/* META ECHOES - Consciousness Indicators (Below Bubble) - ALWAYS SHOW for assistant */}
         {!isUser && (
-          message.emotion ||
-          gravity > 0.6 ||
-          (message.statement_type || message.metadata?.statement_type) ||
-          message.entities?.length > 0 ||
-          message.sentiment ||
-          message.confidence_score ||
-          isIdentityAnchor ||
-          modeConfig
-        ) && (
           <div className="mt-2 flex flex-wrap items-center gap-2 px-3 text-[10px]">
             {/* Mode */}
             {modeConfig && (
@@ -532,27 +550,28 @@ function MessageCard({
               </div>
             )}
 
-            {/* Emotion */}
-            {message.emotion && message.emotion !== 'neutral' && (
+            {/* Emotion - SHOW ALL (including neutral for transparency) */}
+            {message.emotion && (
               <div
                 className="flex items-center gap-1"
-                style={{ color: emotionConfig.styles.text }}
-                title={`Emotion: ${message.emotion}`}
+                style={{ color: emotionConfig.styles.color }}
+                title={`Emotion: ${typeof message.emotion === 'string' ? message.emotion : (typeof message.emotion === 'object' && message.emotion ? (message.emotion as any).theme || (message.emotion as any).name : 'emotion')}`}
               >
                 {emotionConfig.icon && <emotionConfig.icon className="w-3 h-3" />}
-                <span>{message.emotion}</span>
+                <span>{typeof message.emotion === 'string' ? message.emotion : (typeof message.emotion === 'object' && message.emotion ? (message.emotion as any).theme || (message.emotion as any).name : 'emotion')}</span>
               </div>
             )}
 
-            {/* Gravity (only if > 0.6) */}
-            {gravity > 0.6 && (
+            {/* Gravity - ALWAYS SHOW, even low values */}
+            {gravity > 0 && (
               <div
                 className={cx(
                   "flex items-center gap-1",
                   gravity > 0.9 ? "text-red-400" :
                   gravity > 0.8 ? "text-purple-400" :
                   gravity > 0.7 ? "text-violet-400" :
-                  "text-indigo-400"
+                  gravity > 0.5 ? "text-indigo-400" :
+                  "text-blue-400"
                 )}
                 title={`Gravity: ${Math.round(gravity * 100)}%`}
               >
@@ -561,7 +580,7 @@ function MessageCard({
               </div>
             )}
 
-            {/* Statement Type */}
+            {/* Statement Type - ALWAYS SHOW if present */}
             {(message.statement_type || message.metadata?.statement_type) && (
               <div
                 className="flex items-center gap-1 text-cyan-400"
@@ -572,14 +591,36 @@ function MessageCard({
               </div>
             )}
 
-            {/* Entities */}
+            {/* Entities - ALWAYS SHOW if present */}
             {message.entities && message.entities.length > 0 && (
               <div
                 className="flex items-center gap-1 text-blue-400"
                 title={`Entities: ${message.entities.join(', ')}`}
               >
                 <Tag className="w-3 h-3" />
-                <span>{message.entities.length}</span>
+                <span>{message.entities.length} entities</span>
+              </div>
+            )}
+
+            {/* Temporal Type */}
+            {message.metadata?.temporal_type && (
+              <div
+                className="flex items-center gap-1 text-amber-400"
+                title={`Temporal: ${message.metadata.temporal_type}`}
+              >
+                <Activity className="w-3 h-3" />
+                <span>{message.metadata.temporal_type}</span>
+              </div>
+            )}
+
+            {/* Episodic marker */}
+            {message.metadata?.episodic && (
+              <div
+                className="flex items-center gap-1 text-purple-400"
+                title="Episodic memory"
+              >
+                <Database className="w-3 h-3" />
+                <span>episodic</span>
               </div>
             )}
 
@@ -594,25 +635,74 @@ function MessageCard({
               </div>
             )}
 
-            {/* Confidence Score */}
-            {message.confidence_score && message.confidence_score > 0.7 && (
+            {/* Confidence Score - SHOW ALL (removed threshold) */}
+            {message.confidence_score && message.confidence_score > 0 && (
               <div
-                className="flex items-center gap-1 text-green-400"
+                className={cx(
+                  "flex items-center gap-1",
+                  message.confidence_score > 0.8 ? "text-green-400" :
+                  message.confidence_score > 0.6 ? "text-cyan-400" :
+                  "text-gray-400"
+                )}
                 title={`Confidence: ${Math.round(message.confidence_score * 100)}%`}
               >
                 <Activity className="w-3 h-3" />
-                <span>{Math.round(message.confidence_score * 100)}%</span>
+                <span>{Math.round(message.confidence_score * 100)}% confident</span>
               </div>
             )}
 
-            {/* Sentiment */}
-            {message.sentiment && message.sentiment !== 'neutral' && (
+            {/* Sentiment - SHOW ALL */}
+            {message.sentiment && (
               <div
                 className="flex items-center gap-1 text-teal-400"
                 title={`Sentiment: ${message.sentiment}`}
               >
                 <Heart className="w-3 h-3" />
                 <span>{message.sentiment}</span>
+              </div>
+            )}
+
+            {/* Relationship Strength */}
+            {message.metadata?.relationship_strength && message.metadata.relationship_strength > 0 && (
+              <div
+                className="flex items-center gap-1 text-pink-400"
+                title={`Relationship strength: ${Math.round(message.metadata.relationship_strength * 100)}%`}
+              >
+                <Heart className="w-3 h-3" />
+                <span>{Math.round(message.metadata.relationship_strength * 100)}% relational</span>
+              </div>
+            )}
+
+            {/* Memory Constellation */}
+            {message.metadata?.memory_constellation && (
+              <div
+                className="flex items-center gap-1 text-indigo-400"
+                title="Memory constellation active"
+              >
+                <Brain className="w-3 h-3" />
+                <span>memory constellation</span>
+              </div>
+            )}
+
+            {/* Emerging Patterns Count */}
+            {message.metadata?.emerging_patterns && message.metadata.emerging_patterns.length > 0 && (
+              <div
+                className="flex items-center gap-1 text-purple-400"
+                title={`${message.metadata.emerging_patterns.length} emerging patterns`}
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>{message.metadata.emerging_patterns.length} patterns</span>
+              </div>
+            )}
+
+            {/* Token Count - Only show if significant (>500 tokens) */}
+            {message.metadata?.tokens && message.metadata.tokens > 500 && (
+              <div
+                className="flex items-center gap-1 text-gray-500"
+                title={`${message.metadata.tokens} tokens used`}
+              >
+                <Binary className="w-3 h-3" />
+                <span>{message.metadata.tokens}t</span>
               </div>
             )}
           </div>
@@ -649,7 +739,6 @@ export function LongStriderChat() {
   
   const {
     spaces,
-    currentSpaceId,
     cognitiveState,
     createSpace,
     getSpace,
@@ -687,8 +776,8 @@ export function LongStriderChat() {
   })
   
   // Messages from store
-  const messages = useMemo(() => 
-    messagesByThread[currentThreadId] || [],
+  const messages = useMemo(() =>
+    currentThreadId ? (messagesByThread[currentThreadId] || []) : [],
     [messagesByThread, currentThreadId]
   )
   
@@ -882,7 +971,7 @@ export function LongStriderChat() {
         },
         
         // Include consciousness state if available
-        consciousness_state: cognitiveState.v ? cognitiveState : undefined
+        consciousness_state: cognitiveState && Object.keys(cognitiveState).length > 0 ? cognitiveState : undefined
       }
       
       // Call CCE-O with SSE headers
@@ -1373,16 +1462,26 @@ export function LongStriderChat() {
                   }
                   
                   // Update space analytics
-                  updateSpace(currentThreadId, {
-                    analytics: {
-                      ...currentSpace?.analytics,
-                      message_count: (currentSpace?.analytics.message_count || 0) + 1,
-                      last_gravity: finalGravity,
-                      tokens_used: (currentSpace?.analytics.tokens_used || 0) + (parsed.tokens || 0),
-                      estimated_cost: (currentSpace?.analytics.estimated_cost || 0) + (parsed.cost || 0)
-                    },
-                    last_activity_at: Date.now()
-                  })
+                  if (currentThreadId && currentSpace) {
+                    updateSpace(currentThreadId, {
+                      analytics: {
+                        message_count: (currentSpace.analytics.message_count || 0) + 1,
+                        word_count: currentSpace.analytics.word_count || 0,
+                        pattern_count: currentSpace.analytics.pattern_count || 0,
+                        complexity_score: currentSpace.analytics.complexity_score || 0,
+                        gravity_score: finalGravity,
+                        tokens_used: (currentSpace.analytics.tokens_used || 0) + (parsed.tokens || 0),
+                        tokens_saved: currentSpace.analytics.tokens_saved || 0,
+                        estimated_cost: (currentSpace.analytics.estimated_cost || 0) + (parsed.cost || 0),
+                        emotional_signature: currentSpace.analytics.emotional_signature || {
+                          average_gravity: 0,
+                          dominant_emotion: 'neutral',
+                          emotional_arc: []
+                        }
+                      },
+                      last_activity_at: Date.now()
+                    })
+                  }
                   
                   setStreamingMessageId(null)
                   break
@@ -1607,9 +1706,9 @@ export function LongStriderChat() {
   // Search
   const filteredMessages = useMemo(() => {
     if (!searchQuery) return messages
-    
+
     const query = searchQuery.toLowerCase()
-    return messages.filter(m => {
+    return messages.filter((m) => {
       if (m.content.toLowerCase().includes(query)) return true
       if (m.metadata) {
         const metadataStr = JSON.stringify(m.metadata).toLowerCase()
