@@ -1485,7 +1485,7 @@ export function LivingMemorySystem() {
           timeRange={timeRange}
           ownershipFilter={ownershipFilter}
           isMounted={isMounted}
-          onSelectMemory={setSelectedMemory}
+          onSelectMemory={(memory) => setSelectedMemory(memory)}
           onSetTimeRange={setTimeRange}
           onSetOwnershipFilter={setOwnershipFilter}
           onToggleStar={handleToggleStar}

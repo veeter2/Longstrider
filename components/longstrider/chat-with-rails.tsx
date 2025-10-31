@@ -1,20 +1,25 @@
 "use client"
 
-import React from 'react'
+import React, { useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { ThreeRailLayout } from '@/components/three-rail-layout'
 import { LongStriderChat } from './chat-center'
 import { LongStriderLeftRail } from './chat-left-rail'
+import { SpaceCreationInterview } from './space-creation-interview'
 import { useLongStriderStore } from '@/stores/longstrider-store'
 import { useConsciousnessStore } from '@/stores/consciousness-store'
 
 // ============================
 // LONGSTRIDER CHAT WITH RAILS
 // Complete three-rail cognitive interface
+// With conversational space creation
 // ============================
 
 export function LongStriderChatWithRails() {
   const { currentThreadId, setCurrentThread } = useLongStriderStore()
   const { createSpace } = useConsciousnessStore()
+
+  const [showInterview, setShowInterview] = useState(false)
 
   const handleSpaceSelect = (spaceId: string) => {
     // Switch to selected space/thread
@@ -22,39 +27,18 @@ export function LongStriderChatWithRails() {
   }
 
   const handleCreateSpace = () => {
-    // Create new space in consciousness store
-    const newSpace = createSpace({
-      name: `LongStrider ${new Date().toLocaleString()}`,
-      type: 'personal',
-      status: 'active',
-      is_anchored: false,
-      is_favorite: false,
-      signals: [],
-      space_path: [],
-      child_spaces: [],
-      links: [],
-      goals: [],
-      recent_activity: [],
-      active_rail_ids: [],
-      analytics: {
-        message_count: 0,
-        word_count: 0,
-        pattern_count: 0,
-        complexity_score: 0,
-        gravity_score: 0,
-        tokens_used: 0,
-        tokens_saved: 0,
-        estimated_cost: 0,
-        emotional_signature: {
-          average_gravity: 0,
-          dominant_emotion: 'neutral',
-          emotional_arc: []
-        }
-      }
-    })
+    // Open conversational interview instead of creating immediately
+    setShowInterview(true)
+  }
 
-    // Switch to new space
-    setCurrentThread(newSpace.id)
+  const handleInterviewComplete = (spaceId: string) => {
+    // Interview handled space creation and thread switching
+    // Just close the interview
+    setShowInterview(false)
+  }
+
+  const handleInterviewCancel = () => {
+    setShowInterview(false)
   }
 
   return (
@@ -70,7 +54,17 @@ export function LongStriderChatWithRails() {
       leftRailWidth={320}
       rightRailWidth={0}
     >
-      <LongStriderChat />
+      <AnimatePresence mode="wait">
+        {showInterview ? (
+          <SpaceCreationInterview
+            key="interview"
+            onComplete={handleInterviewComplete}
+            onCancel={handleInterviewCancel}
+          />
+        ) : (
+          <LongStriderChat key="chat" />
+        )}
+      </AnimatePresence>
     </ThreeRailLayout>
   )
 }

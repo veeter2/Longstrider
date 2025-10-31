@@ -24,8 +24,8 @@ interface ThreeRailLayoutProps {
   rightRail?: ReactNode
   leftRailWidth?: number
   rightRailWidth?: number
-  leftRailCognitiveBand?: string
-  rightRailCognitiveBand?: string
+  leftRailCognitiveBand?: 'delta' | 'theta-high' | 'beta-low' | 'gamma-low' | 'sigma'
+  rightRailCognitiveBand?: 'delta' | 'theta-high' | 'beta-low' | 'gamma-low' | 'sigma'
 }
 
 export function ThreeRailLayout({

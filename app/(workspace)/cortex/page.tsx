@@ -187,7 +187,7 @@ const MOCK_CORTEX_DATA = {
     knowledge_uploads: ["my_business_strategy.pdf", "chatgpt_history.json"],
   },
   knowledge_import: {
-    uploaded_files: [],
+    uploadedFiles: [],
   },
   processing_time_ms: 342,
   timestamp: 1700000000000, // Fixed timestamp to avoid hydration issues
@@ -266,7 +266,7 @@ export default function CortexPage() {
           onSectionChange={setActiveSection}
         />
       }
-      leftRailCognitiveBand="chi-cyan"
+      leftRailCognitiveBand="gamma-low"
     >
       <div className="h-full p-6 bg-black text-white overflow-y-auto">
         {/* Section Content */}

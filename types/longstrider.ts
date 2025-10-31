@@ -179,6 +179,17 @@ export interface MemorySpace {
   child_ids?: string[]
   linked_ids?: string[]
 
+  // Goals (from consciousness-store Space type)
+  goals?: Array<{
+    id: string
+    title: string
+    description?: string
+    status: 'active' | 'completed' | 'blocked'
+    created_at: number
+    completed_at?: number
+    parent_goal_id?: string
+  }>
+
   // Dynamic metadata
   metadata?: Record<string, any>
 }

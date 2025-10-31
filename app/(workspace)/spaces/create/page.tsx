@@ -50,7 +50,7 @@ export default function CreateSpacePage() {
       is_anchored: false,
       is_favorite: false,
       child_spaces: [],
-      active_rails: [],
+      active_rail_ids: [],
       analytics: {
         message_count: 0,
         word_count: 0,
@@ -132,7 +132,7 @@ export default function CreateSpacePage() {
       is_anchored: false,
       is_favorite: false,
       child_spaces: [],
-      active_rails: [],
+      active_rail_ids: [],
       analytics: {
         message_count: 0,
         word_count: 0,

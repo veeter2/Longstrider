@@ -178,8 +178,8 @@ export default function KnowledgeImporter({
     let userMessages = 0
     let assistantMessages = 0
     let totalLength = 0
-    let earliestDate: Date | null = null
-    let latestDate: Date | null = null
+    let earliestDate = null as Date | null
+    let latestDate = null as Date | null
     let format: 'chatgpt' | 'claude' | 'generic' | 'unknown' = 'unknown'
     const participants = new Set<string>()
 
@@ -239,11 +239,15 @@ export default function KnowledgeImporter({
       }
     })
 
+    // Type narrowing for dates
+    const earliestStr = earliestDate !== null ? earliestDate.toISOString() : 'Unknown'
+    const latestStr = latestDate !== null ? latestDate.toISOString() : 'Unknown'
+
     return {
       totalConversations: data.length,
       dateRange: {
-        earliest: earliestDate?.toISOString() || 'Unknown',
-        latest: latestDate?.toISOString() || 'Unknown'
+        earliest: earliestStr,
+        latest: latestStr
       },
       format,
       participants: Array.from(participants),

@@ -168,7 +168,41 @@ export type IvyMessage = {
     attachment?: { name: string; size?: number }
     memoryConstellation?: MemoryConstellation
     consciousnessState?: ConsciousnessState
-    meta?: Record<string, unknown>
+    meta?: {
+      mode_suggested?: { mode?: string } | string
+      mode_determined?: { mode?: string } | string
+      patterns_detected?: { patterns?: any[]; count?: number }
+      insights_generated?: { insights?: any[]; count?: number }
+      conductor_metadata?: {
+        token_usage?: {
+          total_used?: number
+          prompt_tokens?: number
+          completion_tokens?: number
+          tokens_saved?: number
+          savings_percentage?: number
+        }
+        functions_called?: any[]
+        pipeline_time_ms?: number
+      }
+      orchestrator_complete?: {
+        total_time_ms?: number
+      }
+      calculator_method?: string
+      systems_active?: {
+        calculator?: boolean
+        patterns_detected?: number
+        insights_available?: number
+        conductor_mode?: string
+      }
+      emotional_journey?: {
+        progression?: string
+      }
+      key_themes?: string[]
+      consciousness_chord?: {
+        chord_signature?: string
+      } | string
+      [key: string]: unknown
+    }
     streaming?: boolean
     consciousnessStream?: boolean
   }
@@ -795,10 +829,10 @@ function MessageBubble({
               <div className="flex items-center gap-1">
                 <Brain className="h-3 w-3 text-indigo-400" />
                 <span className="text-indigo-400">
-                  {msg.payload.meta.mode_determined.mode || msg.payload.meta.mode_determined}
+                  {typeof msg.payload.meta.mode_determined === 'string' ? msg.payload.meta.mode_determined : (msg.payload.meta.mode_determined.mode || 'unknown')}
                 </span>
-                {msg.payload.meta.mode_suggested.mode !== msg.payload.meta.mode_determined.mode && (
-                  <span className="text-amber-400 ml-1">(override: {msg.payload.meta.mode_suggested.mode})</span>
+                {(typeof msg.payload.meta.mode_suggested === 'string' ? msg.payload.meta.mode_suggested : msg.payload.meta.mode_suggested.mode) !== (typeof msg.payload.meta.mode_determined === 'string' ? msg.payload.meta.mode_determined : msg.payload.meta.mode_determined.mode) && (
+                  <span className="text-amber-400 ml-1">(override: {typeof msg.payload.meta.mode_suggested === 'string' ? msg.payload.meta.mode_suggested : (msg.payload.meta.mode_suggested.mode || 'unknown')})</span>
                 )}
               </div>
             )}
@@ -1162,7 +1196,7 @@ function MessageBubble({
                       </div>
                     )}
 
-                    {msg.payload.meta.systems_active.patterns_detected > 0 && (
+                    {(msg.payload.meta.systems_active.patterns_detected ?? 0) > 0 && (
                       <div className="flex items-center gap-1">
                         <GitBranch className="h-3 w-3 text-purple-400" />
                         <span className="text-purple-400">
@@ -1171,7 +1205,7 @@ function MessageBubble({
                       </div>
                     )}
 
-                    {msg.payload.meta.systems_active.insights_available > 0 && (
+                    {(msg.payload.meta.systems_active.insights_available ?? 0) > 0 && (
                       <div className="flex items-center gap-1">
                         <Sparkles className="h-3 w-3 text-pink-400" />
                         <span className="text-pink-400">
@@ -1213,7 +1247,7 @@ function MessageBubble({
                     <Waves className="h-3 w-3 text-purple-400" />
                     <span className="text-purple-400">
                       chord:{" "}
-                      {msg.payload.meta.consciousness_chord.chord_signature || msg.payload.meta.consciousness_chord}
+                      {typeof msg.payload.meta.consciousness_chord === 'string' ? msg.payload.meta.consciousness_chord : (msg.payload.meta.consciousness_chord.chord_signature || 'unknown')}
                     </span>
                   </div>
                 )}
