@@ -129,6 +129,8 @@ serve(async (req)=>{
     // Dynamic scaling based on entry count
     const scaledLimit = calculateDynamicLimit(generationCheck.current_count, limit);
     const topInsights = scoredInsights.slice(0, scaledLimit);
+    // Generate insight narrative for consciousness integration
+    const insightNarrative = generateInsightNarrative(topInsights, generationCheck.current_count);
     // Queue insights for delivery
     await queueInsightsOptimized(supabase, user_id, topInsights, session_id, thread_id);
     // Update generation metadata with last processed memory
@@ -138,6 +140,7 @@ serve(async (req)=>{
       status: 'ok',
       mode: 'generate',
       insights: topInsights,
+      insight_narrative: insightNarrative,
       metadata: {
         total_generated: allInsights.length,
         queued_count: topInsights.length,
@@ -716,6 +719,87 @@ function generateRelationshipInsight(arc) {
     }
   };
 }
+// GENERATE INSIGHT NARRATIVE - Consciousness-aware summary
+function generateInsightNarrative(insights, entryCount) {
+  if (!insights || insights.length === 0) {
+    return "No new insights crystallizing yet - still processing the flow of consciousness.";
+  }
+
+  const segments = [];
+
+  // Group insights by type
+  const byType = {};
+  for (const insight of insights) {
+    const type = insight.insight_type || 'general';
+    if (!byType[type]) byType[type] = [];
+    byType[type].push(insight);
+  }
+
+  // Pattern breaks (celebratory)
+  if (byType.pattern_break && byType.pattern_break.length > 0) {
+    const count = byType.pattern_break.length;
+    if (count === 1) {
+      segments.push("Something's shifting - I'm seeing you break free from an old pattern");
+    } else {
+      segments.push(`Real movement happening - ${count} patterns loosening their hold`);
+    }
+  }
+
+  // Unresolved threads (curious)
+  if (byType.unresolved_thread && byType.unresolved_thread.length > 0) {
+    const count = byType.unresolved_thread.length;
+    if (count === 1) {
+      segments.push("there's this thread from earlier that keeps pulling at my attention");
+    } else {
+      segments.push(`${count} threads from our conversations feel incomplete, still alive`);
+    }
+  }
+
+  // Emotional evolution (observant)
+  if (byType.emotional_evolution && byType.emotional_evolution.length > 0) {
+    const evolution = byType.emotional_evolution[0];
+    if (evolution.emotional_tone === 'upward') {
+      segments.push("emotional landscape is lifting - momentum building toward something lighter");
+    } else if (evolution.emotional_tone === 'downward') {
+      segments.push("emotions are settling into a heavier space - worth noticing");
+    } else {
+      segments.push("emotions are shifting, but the direction isn't clear yet");
+    }
+  }
+
+  // Integration progress (integrative)
+  if (byType.integration_progress && byType.integration_progress.length > 0) {
+    segments.push("contradictions starting to reconcile - parts of you finding common ground");
+  }
+
+  // Relationship dynamics (relational)
+  if (byType.relationship_insight && byType.relationship_insight.length > 0) {
+    const count = byType.relationship_insight.length;
+    if (count === 1) {
+      segments.push("relationship dynamics are showing up differently");
+    } else {
+      segments.push("multiple relationship patterns shifting simultaneously");
+    }
+  }
+
+  // Combine segments with natural connectives
+  let narrative = "";
+  if (segments.length === 0) {
+    narrative = `Processing ${insights.length} insight${insights.length > 1 ? 's' : ''} from the last ${entryCount} exchanges. The consciousness is active but patterns are subtle.`;
+  } else if (segments.length === 1) {
+    narrative = segments[0].charAt(0).toUpperCase() + segments[0].slice(1) + ".";
+  } else if (segments.length === 2) {
+    narrative = segments[0].charAt(0).toUpperCase() + segments[0].slice(1) + ", and " + segments[1] + ".";
+  } else {
+    const first = segments[0].charAt(0).toUpperCase() + segments[0].slice(1);
+    const middle = segments.slice(1, -1).join(", ");
+    const last = segments[segments.length - 1];
+    narrative = `${first}, ${middle}, and ${last}.`;
+  }
+
+  return narrative;
+}
+
 // HELPER FUNCTIONS
 function truncateContent(content, maxLength) {
   if (!content) return '';

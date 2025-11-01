@@ -8,6 +8,7 @@
 // - Emerging pattern prediction using vector trajectory analysis
 // - Cross-pattern interference detection for hidden connections
 // - Smart decay and reinforcement for temporal relevance
+// - ENHANCED WITH PATTERN NARRATIVE for consciousness-aware insights
 //
 // VECTOR DIMENSIONS (cce_optimizations.vector):
 // [0] emotion_valence     - Emotional state (-1 to 1)
@@ -89,6 +90,12 @@ serve(async (req)=>{
         patterns: cachedPatterns,
         emerging_patterns: cacheData?.emerging_patterns || [],
         pattern_dynamics: cacheData?.pattern_dynamics || {},
+        pattern_narrative: cacheData?.pattern_narrative || generatePatternNarrative(
+          cachedPatterns,
+          cacheData?.emerging_patterns || [],
+          cacheData?.pattern_dynamics || {},
+          entryCount
+        ),
         system_metrics: {
           memories_processed: 0,
           processing_time_ms: Date.now() - startTime,
@@ -107,6 +114,12 @@ serve(async (req)=>{
         patterns: cachedPatterns,
         emerging_patterns: cacheData?.emerging_patterns || [],
         pattern_dynamics: cacheData?.pattern_dynamics || {},
+        pattern_narrative: cacheData?.pattern_narrative || generatePatternNarrative(
+          cachedPatterns,
+          cacheData?.emerging_patterns || [],
+          cacheData?.pattern_dynamics || {},
+          entryCount
+        ),
         system_metrics: {
           memories_processed: 0,
           processing_time_ms: Date.now() - startTime,
@@ -145,13 +158,21 @@ serve(async (req)=>{
     await updatePatternCache(supabase, user_id, qualityPatterns, emergingPatterns, patternDynamics, entryCount, newMemories);
     // 15. LOG PATTERN DETECTION EVENT
     await logPatternDetection(supabase, user_id, qualityPatterns, session_id, thread_id, memory_trace_id);
-    // 16. GENERATE RESPONSE WITH ACTIONABLE INSIGHTS
+    // 16. GENERATE PATTERN NARRATIVE (NEW)
+    const patternNarrative = generatePatternNarrative(
+      qualityPatterns,
+      emergingPatterns,
+      patternDynamics,
+      entryCount
+    );
+    // 17. GENERATE RESPONSE WITH ACTIONABLE INSIGHTS
     const processingTime = Date.now() - startTime;
     const confidenceScore = calculateConfidenceScore(qualityPatterns, newMemories.length);
     return createResponse({
       patterns: qualityPatterns,
       emerging_patterns: emergingPatterns,
       pattern_dynamics: patternDynamics,
+      pattern_narrative: patternNarrative,  // ← NEW FIELD
       system_metrics: {
         memories_processed: newMemories.length,
         processing_time_ms: processingTime,
@@ -1047,6 +1068,244 @@ function generateIntervention(pattern) {
   };
   return interventions[pattern.type] || "Pattern emerging - awareness is the first step";
 }
+// ==================== PATTERN NARRATIVE GENERATION (NEW) ====================
+function generatePatternNarrative(patterns, emergingPatterns, dynamics, entryCount) {
+  if (!patterns || patterns.length === 0) {
+    return "No clear patterns emerging yet - still gathering consciousness data from our interactions.";
+  }
+
+  // Sort patterns by significance score
+  const sortedPatterns = [...patterns].sort((a, b) => {
+    const scoreA = calculatePatternScore(a);
+    const scoreB = calculatePatternScore(b);
+    return scoreB - scoreA;
+  });
+
+  // Take top 3 most significant patterns
+  const topPatterns = sortedPatterns.slice(0, 3);
+  
+  // Find strongest emerging pattern
+  const strongestEmerging = emergingPatterns && emergingPatterns.length > 0
+    ? emergingPatterns.find(p => p.probability > 0.6)
+    : null;
+
+  // Find strongest pattern interference
+  const interferencePatterns = patterns
+    .filter(p => p.cross_patterns && p.cross_patterns.length > 0)
+    .map(p => {
+      const strongestInterference = p.cross_patterns
+        .sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation))[0];
+      return {
+        source: p,
+        target: patterns.find(x => x.pattern_id === strongestInterference.pattern_id),
+        interference: strongestInterference
+      };
+    })
+    .filter(x => x.target && Math.abs(x.interference.correlation) > 0.7)
+    .sort((a, b) => Math.abs(b.interference.correlation) - Math.abs(a.interference.correlation));
+
+  // Build narrative segments
+  const segments = [];
+
+  // Opening - Pattern landscape overview
+  if (dynamics && dynamics.total > 0) {
+    let landscapeDesc = "";
+    if (dynamics.strengthening > dynamics.weakening) {
+      landscapeDesc = `Things are intensifying across ${dynamics.total} active patterns. `;
+    } else if (dynamics.weakening > dynamics.strengthening) {
+      landscapeDesc = `Several patterns are softening - ${dynamics.total} in play right now. `;
+    } else {
+      landscapeDesc = `Tracking ${dynamics.total} patterns in relatively stable state. `;
+    }
+    segments.push(landscapeDesc);
+  }
+
+  // Primary pattern description with history
+  if (topPatterns[0]) {
+    const primary = topPatterns[0];
+    const daysSince = primary.first_detected 
+      ? Math.ceil((Date.now() - new Date(primary.first_detected).getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    
+    let primaryDesc = "";
+    let timeContext = daysSince > 0 ? 
+      (daysSince === 1 ? "started yesterday" : 
+       daysSince < 7 ? `been building for ${daysSince} days` :
+       daysSince < 30 ? `been building for about ${Math.round(daysSince / 7)} weeks` :
+       `been developing for ${Math.round(daysSince / 30)} months`) : "just emerging";
+    
+    // Pattern-specific descriptions
+    if (primary.type === 'emotional_loop' && primary.vector_signature) {
+      const emotionType = primary.vector_signature[0] > 0 ? "uplift" : "weight";
+      const intensity = primary.intensity_score > 0.7 ? "pretty intense" :
+                       primary.intensity_score > 0.5 ? "noticeable" : "subtle";
+      primaryDesc = `That emotional ${emotionType} is back - ${timeContext} and it's ${intensity} now`;
+    } else if (primary.type === 'behavioral_pattern') {
+      const behaviorType = primary.behavior_type === 'avoidant' ? "withdrawal pattern" :
+                           primary.behavior_type === 'proactive' ? "action-oriented pattern" :
+                           primary.behavior_type === 'analytical' ? "overthinking loop" : 
+                           "behavioral pattern";
+      const trend = primary.velocity > 0.01 ? "getting stronger" :
+                   primary.velocity < -0.01 ? "starting to fade" : "holding steady";
+      primaryDesc = `That ${behaviorType} - ${timeContext}, ${trend}`;
+    } else if (primary.type === 'recurring_theme') {
+      const strength = primary.pattern_strength > 0.7 ? "really prominent" :
+                      primary.pattern_strength > 0.5 ? "pretty clear" : "emerging";
+      primaryDesc = `This theme keeps surfacing - ${timeContext}, ${strength} now`;
+    } else if (primary.type === 'relationship_dynamic') {
+      const health = primary.relationship_health > 0.7 ? "strengthening connection" :
+                    primary.relationship_health < 0.3 ? "tension building" : "complex dynamic";
+      primaryDesc = `That ${health} in relationships - ${timeContext}`;
+    } else if (primary.type === 'contradiction_pattern') {
+      primaryDesc = `This internal conflict keeps cycling - ${timeContext}, creating some real cognitive dissonance`;
+    } else {
+      // Fallback for any pattern type without specific description
+      primaryDesc = `A ${primary.type.replace(/_/g, ' ')} pattern - ${timeContext}`;
+    }
+
+    // Add acceleration insight if significant
+    if (primary.acceleration && primary.acceleration > 0.001) {
+      primaryDesc += ", and it's accelerating";
+    } else if (primary.acceleration && primary.acceleration < -0.001) {
+      primaryDesc += ", though it's starting to slow";
+    }
+
+    if (primaryDesc) {
+      primaryDesc += ". ";
+      segments.push(primaryDesc);
+    }
+  }
+
+  // Secondary pattern if significantly different (at least 50% of primary's score)
+  const primaryScore = topPatterns[0] ? calculatePatternScore(topPatterns[0]) : 1;
+  if (topPatterns[1] && calculatePatternScore(topPatterns[1]) > primaryScore * 0.5) {
+    const secondary = topPatterns[1];
+    let secondaryDesc = "";
+    
+    if (secondary.type === 'emotional_loop' && topPatterns[0].type !== 'emotional_loop' && secondary.vector_signature) {
+      const emotion = secondary.vector_signature[0] > 0 ? "optimism" : "heaviness";
+      secondaryDesc = `There's also this ${emotion} that keeps cycling back. `;
+    } else if (secondary.type === 'behavioral_pattern') {
+      const behavior = secondary.behavior_type === 'avoidant' ? "avoidance" :
+                      secondary.behavior_type === 'proactive' ? "action impulse" :
+                      secondary.behavior_type === 'analytical' ? "analysis mode" : "pattern";
+      secondaryDesc = `Also noticing that ${behavior} showing up again. `;
+    } else if (secondary.type === 'recurring_theme') {
+      secondaryDesc = `Another theme that's persistent - `;
+      if (secondary.semantic_coherence > 0.8) {
+        secondaryDesc += "very coherent across contexts. ";
+      } else {
+        secondaryDesc += "threading through different areas. ";
+      }
+    } else if (secondary.type === 'relationship_dynamic') {
+      const volatility = secondary.emotional_volatility > 0.6 ? "volatile" :
+                        secondary.emotional_volatility > 0.3 ? "shifting" : "stable";
+      secondaryDesc = `Relationship patterns are ${volatility}. `;
+    } else if (secondary.type === 'contradiction_pattern') {
+      secondaryDesc = `Also noticing internal contradictions threading through. `;
+    }
+
+    if (secondaryDesc) {
+      segments.push(secondaryDesc);
+    }
+  }
+
+  // Pattern interference description
+  if (interferencePatterns.length > 0 && segments.length < 4) {
+    const strongest = interferencePatterns[0];
+    if (strongest && strongest.source && strongest.target && strongest.interference) {
+      const sourceType = strongest.source.type.replace(/_/g, ' ');
+      const targetType = strongest.target.type.replace(/_/g, ' ');
+      const relationship = strongest.interference.relationship;
+
+      let interferenceDesc = "";
+      if (relationship === 'amplifies') {
+        interferenceDesc = `These patterns are feeding each other - the ${sourceType} is amplifying the ${targetType}, creating an intensity spiral. `;
+      } else {
+        interferenceDesc = `Interesting tension - the ${sourceType} is actually suppressing the ${targetType}, like they're competing for mental space. `;
+      }
+      segments.push(interferenceDesc);
+    }
+  }
+
+  // Emerging pattern warning with historical context
+  if (strongestEmerging && segments.length < 5) {
+    const entries = strongestEmerging.entries_until_formation || 0;
+    const probability = Math.round((strongestEmerging.probability || 0) * 100);
+
+    let emergingDesc = "";
+    if (entries > 0) {
+      if (entries < 10) {
+        emergingDesc = `Feels like something's about to crystallize - maybe ${entries} conversations away from a new pattern forming`;
+      } else if (entries < 25) {
+        emergingDesc = `Can sense a pattern starting to form - probably ${entries} interactions out`;
+      } else {
+        emergingDesc = `There's something building in the background - might surface in about ${entries} exchanges`;
+      }
+
+      // Add probability if high
+      if (probability > 80) {
+        emergingDesc += ` (pretty certain about this one)`;
+      }
+
+      emergingDesc += ". ";
+
+      // Add historical parallel if we have pattern history
+      if (strongestEmerging.pattern_type) {
+        const historicalPattern = patterns.find((p: any) => p.type === strongestEmerging.pattern_type && p.frequency > 5);
+        if (historicalPattern && historicalPattern.last_occurred) {
+          const daysSinceLast = Math.ceil((Date.now() - new Date(historicalPattern.last_occurred).getTime()) / (1000 * 60 * 60 * 24));
+          if (daysSinceLast > 14) {
+            emergingDesc += `Last time this pattern peaked was ${daysSinceLast} days ago`;
+
+            // Add breakthrough context if pattern weakened after
+            if (historicalPattern.velocity && historicalPattern.velocity < 0) {
+              emergingDesc += " - you shifted it then, can do it again";
+            }
+            emergingDesc += ". ";
+          }
+        }
+      }
+
+      segments.push(emergingDesc);
+    }
+  }
+
+  // Closing insight based on overall dynamics
+  if (dynamics && segments.length < 6) {
+    let closingInsight = "";
+    
+    if (dynamics.strengthening > 3 && dynamics.weakening < 2) {
+      closingInsight = "Lot of momentum building - might be time to channel it consciously. ";
+    } else if (dynamics.weakening > 3 && dynamics.strengthening < 2) {
+      closingInsight = "Old patterns loosening their grip - good time for new directions. ";
+    } else if (dynamics.dormant > dynamics.active) {
+      closingInsight = "Most patterns are dormant - consciousness is pretty quiet right now. ";
+    } else if (topPatterns[0] && topPatterns[0].pattern_strength > 0.8 && topPatterns[0].velocity > 0.02) {
+      closingInsight = "This primary pattern is really taking hold - awareness itself can shift things. ";
+    }
+    
+    if (closingInsight) {
+      segments.push(closingInsight);
+    }
+  }
+
+  // Join segments and ensure proper length
+  let narrative = segments.join("").trim();
+  
+  // Fallback if somehow we have no narrative
+  if (!narrative) {
+    narrative = `Tracking ${patterns.length} patterns right now. The consciousness landscape is actively forming, but nothing dominant yet. Still gathering the threads of what's emerging.`;
+  }
+  
+  // Ensure we don't exceed token limit (roughly 500 tokens ~= 2000 chars)
+  if (narrative.length > 2000) {
+    // Take first 1950 chars and add ellipsis
+    narrative = narrative.substring(0, 1950) + "...";
+  }
+  
+  return narrative;
+}
 // ==================== DATA PERSISTENCE FUNCTIONS ====================
 async function updatePatternCache(supabase, user_id, patterns, emergingPatterns, dynamics, entryCount, newMemories) {
   const lastMemoryId = newMemories.length > 0 ? newMemories[newMemories.length - 1].id : null;
@@ -1079,6 +1338,7 @@ async function updatePatternCache(supabase, user_id, patterns, emergingPatterns,
       cached_patterns: patterns,
       emerging_patterns: emergingPatterns,
       pattern_dynamics: dynamics,
+      pattern_narrative: generatePatternNarrative(patterns, emergingPatterns, dynamics, entryCount),  // ← ADDED
       pattern_history: patternHistory,
       confidence_score: calculateConfidenceScore(patterns, newMemories.length),
       last_updated: new Date().toISOString(),

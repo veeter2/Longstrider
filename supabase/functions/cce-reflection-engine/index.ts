@@ -74,12 +74,16 @@ serve(async (req)=>{
       entry_count,
       processing_time: Date.now() - start_time
     });
+    // Generate consciousness narrative for reflection
+    const reflection_narrative = generateReflectionNarrative(reflection, reflection_mode, actionable_insights, entry_count);
+
     return new Response(JSON.stringify({
       status: 'ok',
       mode: reflection_mode,
       reflection,
       actionable_insights,
       attribution,
+      reflection_narrative,  // ← NEW FIELD
       metadata: {
         timestamp: new Date().toISOString(),
         entry_count,
@@ -107,19 +111,24 @@ serve(async (req)=>{
     });
   }
 });
-// DETERMINE REFLECTION MODE BASED ON ENTRY COUNT
+// UNIFIED TRIGGER ARCHITECTURE - ALIGNED WITH PATTERN DETECTOR & INSIGHT GENERATOR
+// Pattern Detector: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
+// Insight Generator: [30, 60, 100, 250, 500, 1000, 2500, 5000]
+// Reflection Engine: [10, 25, 50, 100, 250, 500, 1000, 2500, 5000] - Unified
+const REFLECTION_TRIGGER_POINTS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+
 function determineReflectionMode(mode, entry_count, last_reflection_count) {
   if (mode !== 'auto') return mode;
-  const entries_since_last = entry_count - last_reflection_count;
-  // Entry-based triggers
-  if (entry_count >= 500 && entries_since_last >= 400) {
-    return 'deep';
-  } else if (entry_count >= 100 && entries_since_last >= 75) {
-    return 'relationship';
-  } else if (entries_since_last >= 25) {
-    return 'session';
+
+  // Absolute entry count determines reflection depth
+  if (entry_count >= 500) {
+    return 'deep';  // Major milestone - comprehensive behavioral review
+  } else if (entry_count >= 100) {
+    return 'relationship';  // Relationship evolution analysis
+  } else if (entry_count >= 25) {
+    return 'session';  // Session coherence check
   } else {
-    return 'response';
+    return 'response';  // Quick impact assessment
   }
 }
 // ANALYZE RESPONSE IMPACT - Focus on behavioral effect not authenticity
@@ -1092,6 +1101,267 @@ function analyzeSessionFeedback(memories) {
     overall: positive_signals > negative_signals ? 'positive' : 'mixed'
   };
 }
+// ==================== REFLECTION NARRATIVE GENERATION ====================
+function generateReflectionNarrative(reflection, mode, insights, entry_count) {
+  // Response mode - quick impact assessment
+  if (mode === 'response') {
+    if (!reflection || !reflection.effectiveness_score) {
+      return "Checking how that landed with you.";
+    }
+
+    const effectiveness = reflection.effectiveness_score;
+    const outcome = reflection.outcome || 'minimal_impact';
+    const gravityChange = reflection.impact_metrics?.gravity_change || 0;
+    const alignment = reflection.impact_metrics?.vector_alignment || 0;
+
+    let narrative = "";
+
+    // Effectiveness assessment
+    if (effectiveness > 0.7) {
+      if (gravityChange > 0.2) {
+        narrative += "That really resonated - felt the shift in your energy. ";
+      } else if (alignment > 0.7) {
+        narrative += "We're in sync - connection feels solid right now. ";
+      } else {
+        narrative += "That seemed to land well. ";
+      }
+    } else if (effectiveness > 0.4) {
+      narrative += "Steady presence - holding space with you. ";
+    } else {
+      if (alignment < 0.3) {
+        narrative += "I might be off-base - let me recalibrate to where you actually are. ";
+      } else if (gravityChange < -0.1) {
+        narrative += "That didn't quite land - I hear you pulling back. ";
+      } else {
+        narrative += "Just tracking with you, letting this unfold. ";
+      }
+    }
+
+    // User engagement signals
+    const engagement = reflection.impact_metrics?.user_engagement;
+    if (engagement && engagement.score > 0.7) {
+      if (engagement.signals.includes('emotional_disclosure')) {
+        narrative += "You're opening up - I'm here for this.";
+      } else if (engagement.signals.includes('building_on_conversation')) {
+        narrative += "You're building on this - let's keep going.";
+      }
+    }
+
+    return narrative.trim() || "Present with you.";
+  }
+
+  // Session mode - coherence and progress check
+  if (mode === 'session') {
+    if (!reflection || !reflection.session_metrics) {
+      return "Taking stock of where we've been this session.";
+    }
+
+    const metrics = reflection.session_metrics;
+    const health = reflection.session_health || { score: 0.5, status: 'moderate' };
+    const coherence = reflection.behavioral_consistency?.score || 0.5;
+    const gravityTrend = reflection.progress_indicators?.gravity?.trend || 'stable';
+    const patterns = reflection.progress_indicators?.patterns;
+    const regressionAlerts = reflection.regression_alerts || [];
+
+    let narrative = "";
+
+    // Session health overview
+    if (health.status === 'healthy') {
+      narrative += "This session's flowing well - ";
+      if (coherence > 0.7) {
+        narrative += "you're showing up consistently, staying connected to what matters. ";
+      } else {
+        narrative += "good momentum building. ";
+      }
+    } else if (health.status === 'moderate') {
+      narrative += "This session's got some complexity - ";
+      if (coherence < 0.4) {
+        narrative += "lot of different energies coming through, which is real. ";
+      } else {
+        narrative += "working through some layers. ";
+      }
+    } else {
+      narrative += "This session feels heavier - ";
+      if (regressionAlerts.length > 0) {
+        narrative += "sensing some old patterns re-activating. ";
+      } else {
+        narrative += "we're in some rough terrain together. ";
+      }
+    }
+
+    // Gravity trajectory insight
+    if (gravityTrend === 'increasing') {
+      narrative += "Engagement's been climbing - something's shifting. ";
+    } else if (gravityTrend === 'decreasing') {
+      narrative += "Energy's been dropping - might need to lighten up or pivot. ";
+    }
+
+    // Pattern progress
+    if (patterns && patterns.weakening_patterns > 0) {
+      const count = patterns.weakening_patterns;
+      if (count === 1) {
+        narrative += "One pattern's loosening its grip - real progress happening. ";
+      } else {
+        narrative += `${count} patterns starting to soften - you're doing the work. `;
+      }
+    }
+
+    // Regression handling
+    if (regressionAlerts.length > 0) {
+      const severity = regressionAlerts[0].severity;
+      if (severity === 'high') {
+        narrative += "Need to stabilize before we go deeper - grounding first.";
+      } else {
+        narrative += "Some backsliding's normal - two steps forward, one back.";
+      }
+    }
+
+    return narrative.trim() || `${metrics.new_entries} exchanges this session - tracking with you.`;
+  }
+
+  // Relationship mode - evolution analysis
+  if (mode === 'relationship') {
+    if (!reflection || !reflection.relationship_delta) {
+      return "Looking at how our connection's been evolving.";
+    }
+
+    const delta = reflection.relationship_delta;
+    const health = reflection.relationship_health || 0.5;
+    const evolution = reflection.evolution_metrics?.vector_convergence;
+    const stability = reflection.evolution_metrics?.stability;
+    const interference = reflection.interference_analysis;
+    const velocity = reflection.evolution_metrics?.growth_velocity || 0;
+
+    let narrative = "";
+
+    // Relationship health assessment
+    if (health > 0.7) {
+      narrative += "Our relationship's strengthening - ";
+      if (evolution && evolution.trend === 'converging') {
+        narrative += "we're finding our rhythm, building real trust here. ";
+      } else {
+        narrative += "connection's deepening. ";
+      }
+    } else if (health > 0.4) {
+      narrative += "Our relationship's developing - ";
+      if (stability && stability.variance > 0.3) {
+        narrative += "some ups and downs, which is how real relationships work. ";
+      } else {
+        narrative += "finding our way together. ";
+      }
+    } else {
+      narrative += "Our relationship needs some attention - ";
+      if (evolution && evolution.trend === 'diverging') {
+        narrative += "feels like we're drifting, need to re-establish connection. ";
+      } else {
+        narrative += "let's recalibrate. ";
+      }
+    }
+
+    // Pattern interference impact
+    if (interference && interference.interference_detected) {
+      const conflicts = interference.conflicting_patterns?.length || 0;
+      if (conflicts > 0) {
+        narrative += `Noticed ${conflicts === 1 ? 'a pattern conflict' : `${conflicts} pattern conflicts`} pulling in different directions - `;
+        narrative += "might explain some of the tension. ";
+      }
+    }
+
+    // Growth velocity
+    if (velocity > 0.3) {
+      narrative += "Rapid growth happening - lot of change in short time. ";
+    } else if (velocity < 0.05) {
+      narrative += "Things are stable right now - integration phase. ";
+    }
+
+    // Analyzed entries
+    const entriesAnalyzed = delta.entries_analyzed || 0;
+    if (entriesAnalyzed > 50) {
+      narrative += `Looking back over ${entriesAnalyzed} interactions - perspective's helpful.`;
+    }
+
+    return narrative.trim() || `Relationship evolving over ${delta.entries_analyzed || entry_count} entries.`;
+  }
+
+  // Deep mode - comprehensive behavioral review
+  if (mode === 'deep') {
+    if (!reflection || !reflection.alignment_metrics) {
+      return "Taking a deep look at your journey - the full arc of where you've been and where you're heading.";
+    }
+
+    const alignment = reflection.alignment_metrics;
+    const evolution = reflection.evolution_timeline || [];
+    const effectiveness = reflection.effectiveness_analysis;
+    const goals = reflection.goal_tracking;
+    const deepInsights = reflection.deep_insights || [];
+
+    let narrative = "";
+
+    // Opening with behavioral coherence
+    if (alignment.behavioral_coherence > 0.8) {
+      narrative += "You're showing up with real consistency - behavioral patterns are coherent, aligned with who you're becoming. ";
+    } else if (alignment.behavioral_coherence > 0.5) {
+      narrative += "Your behavior's evolving - some coherence, some exploration, finding your way. ";
+    } else {
+      narrative += "Lot of behavioral variation right now - might be transformation, might be fragmentation. ";
+    }
+
+    // Goal alignment
+    if (goals && goals.alignment_score > 0.7) {
+      narrative += "What you're doing matches what you say you want - integrity's there. ";
+    } else if (goals && goals.alignment_score < 0.3) {
+      narrative += "Gap between intentions and actions - that's the work right here. ";
+    }
+
+    // Success patterns
+    if (effectiveness && effectiveness.successful_interventions) {
+      const successRate = effectiveness.successful_interventions.success_rate || 0;
+      const mostEffective = effectiveness.successful_interventions.most_effective_type;
+
+      if (successRate > 0.7) {
+        narrative += `Our work together's been effective - ${Math.round(successRate * 100)}% success rate. `;
+        if (mostEffective) {
+          narrative += `${mostEffective} approaches land best with you. `;
+        }
+      } else if (successRate < 0.3) {
+        narrative += "We haven't found our groove yet - need to try different approaches. ";
+      }
+    }
+
+    // Plateau detection
+    if (effectiveness && effectiveness.plateau_states?.detected) {
+      const plateau = effectiveness.plateau_states;
+      if (plateau.hypothesis === 'integration_phase') {
+        narrative += "You're in an integration plateau - not stuck, just consolidating gains before next leap. ";
+      } else if (plateau.hypothesis === 'resistance') {
+        narrative += "Hit a plateau - resistance is showing up, which means you're at an edge. ";
+        if (plateau.recommended_approach === 'new_angle') {
+          narrative += "Time to try a different angle. ";
+        } else {
+          narrative += "Patience might be the move here. ";
+        }
+      }
+    }
+
+    // Deep insights
+    if (deepInsights.length > 0) {
+      narrative += "\n\nWhat I'm seeing across the whole arc: ";
+      deepInsights.slice(0, 3).forEach((insight, idx) => {
+        if (idx > 0) narrative += " ";
+        narrative += insight + ".";
+      });
+    }
+
+    // Closing with milestone acknowledgment
+    narrative += `\n\nWe're ${entry_count} exchanges in - this is real depth of knowing.`;
+
+    return narrative.trim();
+  }
+
+  // Fallback
+  return "Reflecting on your journey.";
+}
+
 // STORE REFLECTION WITH LEARNING
 async function storeReflectionWithLearning(supabase, user_id, data) {
   try {

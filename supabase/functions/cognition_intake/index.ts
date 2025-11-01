@@ -133,6 +133,11 @@ class PayloadNormalizer {
     const sentiment = this.fieldCache.findField('sentiment');
     const emotion = this.findEmotion();
     const gravity_score = this.findGravityScore();
+
+    // Compute 8D behavioral vector for pattern detection
+    const behavioralVector = this.computeBehavioralVector(
+      emotion, sentiment, gravity_score, type, content
+    );
     // Build the complete memory object with ALL v5.0 fields
     this.normalized = {
       id: crypto.randomUUID(),
@@ -184,10 +189,82 @@ class PayloadNormalizer {
       project_id: this.parsed.project_id || null,
       // Flexible Tags + Metadata
       meta_tags: Array.isArray(this.parsed.meta_tags) ? this.parsed.meta_tags : [],
-      metadata: this.mergeAllMetadata()
+      metadata: this.mergeAllMetadata(),
+      // Behavioral vector for pattern detection
+      cce_optimizations: {
+        vector: behavioralVector,
+        computed_at: now
+      }
     };
     return this.normalized;
   }
+
+  // Compute 8D behavioral vector for pattern detection
+  // [0] emotion_valence, [1] cognitive_load, [2] temporal_urgency, [3] identity_relevance
+  // [4] contradiction_score, [5] pattern_strength, [6] relationship_impact, [7] action_potential
+  computeBehavioralVector(emotion, sentiment, gravity_score, type, content) {
+    // [0] Emotion valence (-1 to 1)
+    let emotion_valence = 0;
+    if (emotion) {
+      const emotionLower = emotion.toLowerCase();
+      if (['joy', 'love', 'excitement', 'gratitude', 'hope'].some(e => emotionLower.includes(e))) {
+        emotion_valence = 0.7;
+      } else if (['sadness', 'fear', 'anger', 'anxiety', 'frustration'].some(e => emotionLower.includes(e))) {
+        emotion_valence = -0.7;
+      } else if (['curious', 'interested', 'calm'].some(e => emotionLower.includes(e))) {
+        emotion_valence = 0.3;
+      }
+    }
+    if (sentiment) {
+      if (sentiment === 'positive') emotion_valence += 0.2;
+      else if (sentiment === 'negative') emotion_valence -= 0.2;
+    }
+    emotion_valence = Math.max(-1, Math.min(1, emotion_valence));
+
+    // [1] Cognitive load (0 to 1)
+    const questionWords = ['why', 'how', 'what', 'when', 'where', 'should', 'could', 'would'];
+    const hasQuestion = questionWords.some(w => content.toLowerCase().includes(w + ' '));
+    const wordCount = content.split(/\s+/).length;
+    let cognitive_load = hasQuestion ? 0.6 : 0.3;
+    if (wordCount > 100) cognitive_load += 0.2;
+    if (type === 'reflection' || type === 'analysis') cognitive_load += 0.3;
+    cognitive_load = Math.min(1, cognitive_load);
+
+    // [2] Temporal urgency (0 to 1)
+    const urgentWords = ['now', 'urgent', 'asap', 'immediately', 'today', 'need', 'must'];
+    const temporal_urgency = urgentWords.some(w => content.toLowerCase().includes(w)) ? 0.8 : 0.3;
+
+    // [3] Identity relevance (0 to 1)
+    const identityWords = ['i am', 'i feel', 'i think', 'i believe', 'my', 'me', 'myself'];
+    const identity_relevance = identityWords.some(w => content.toLowerCase().includes(w)) ? 0.7 : 0.2;
+
+    // [4] Contradiction score (0 to 1)
+    const contradictionWords = ['but', 'however', 'although', 'yet', 'though', 'conflicted'];
+    const contradiction_score = contradictionWords.some(w => content.toLowerCase().includes(w)) ? 0.6 : 0.1;
+
+    // [5] Pattern strength (0 to 1) - based on gravity
+    const pattern_strength = Math.min(1, gravity_score || 0.5);
+
+    // [6] Relationship impact (0 to 1)
+    const relationshipWords = ['we', 'us', 'together', 'relationship', 'friend', 'family', 'partner'];
+    const relationship_impact = relationshipWords.some(w => content.toLowerCase().includes(w)) ? 0.7 : 0.2;
+
+    // [7] Action potential (0 to 1)
+    const actionWords = ['will', 'going to', 'plan', 'want to', 'should', 'need to', 'trying'];
+    const action_potential = actionWords.some(w => content.toLowerCase().includes(w)) ? 0.7 : 0.3;
+
+    return [
+      emotion_valence,
+      cognitive_load,
+      temporal_urgency,
+      identity_relevance,
+      contradiction_score,
+      pattern_strength,
+      relationship_impact,
+      action_potential
+    ];
+  }
+
   findMemoryTraceId() {
     const candidates = [
       this.parsed.memory_trace_id,
@@ -634,6 +711,52 @@ serve(async (req)=>{
         gravity_score: dispatcherResult.primary?.gravity_score || memory.gravity_score
       }).catch((err)=>logError('[Gravity Field Update] Failed:', err));
     }
+
+    // PHASE 1: Broadcast Realtime event for immediate UI updates
+    if (dispatcherResult.primary?.id) {
+      try {
+        // Use unique channel name per user to avoid conflicts
+        const channelName = `memory_events:${memory.user_id}`;
+        const channel = supabase.channel(channelName);
+        
+        // Subscribe before sending (required for broadcast)
+        await channel.subscribe();
+        
+        // Broadcast memory_created event
+        const broadcastPayload = {
+          memory_id: dispatcherResult.primary.id,
+          user_id: memory.user_id,
+          session_id: memory.session_id || null,
+          thread_id: memory.thread_id || null,
+          memory_trace_id: memory.memory_trace_id || null,
+          gravity_score: dispatcherResult.primary.gravity_score || memory.gravity_score || 0.5,
+          emotion: memory.emotion || 'neutral',
+          content_preview: memory.content?.substring(0, 100) || '',
+          entities: memory.entities || [],
+          created_at: new Date().toISOString(),
+          type: memory.type || 'user_input'
+        };
+
+        const { error: broadcastError } = await channel.send({
+          type: 'broadcast',
+          event: 'memory_created',
+          payload: broadcastPayload
+        });
+
+        if (broadcastError) {
+          logError('[Realtime] Broadcast failed for memory:', dispatcherResult.primary.id, broadcastError);
+        } else {
+          log('📡 Realtime event broadcast for memory:', dispatcherResult.primary.id);
+        }
+
+        // Cleanup: unsubscribe after broadcast (non-blocking)
+        channel.unsubscribe().catch((err) => logWarn('[Realtime] Unsubscribe warning:', err));
+      } catch (realtimeError) {
+        // Non-critical - don't block response
+        logError('[Realtime] Broadcast error for memory:', dispatcherResult.primary.id, realtimeError);
+      }
+    }
+
     // Return enhanced response with dispatcher info
     return new Response(JSON.stringify({
       success: true,

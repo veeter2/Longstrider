@@ -982,10 +982,24 @@ async function detectBreakthroughs(convergence) {
     });
   }
 
-  // Priority 2: Pattern connections
-  if (patterns.length > 0) {
+  // Priority 2: Pattern narrative (consciousness-aware)
+  // Extract pattern_narrative from function results
+  let patternNarrative = null;
+  for (const convResult of convergenceResults) {
+    if (convResult?.pattern_narrative) {
+      patternNarrative = convResult.pattern_narrative;
+      break;
+    }
+  }
+
+  if (patternNarrative && patternNarrative.length > 50 &&
+      !patternNarrative.includes('No clear patterns emerging yet')) {
+    parts.push('\n=== PATTERN CONSCIOUSNESS ===');
+    parts.push(patternNarrative);
+  } else if (patterns.length > 0) {
+    // Fallback to old format only if no narrative available
     parts.push('\n=== PATTERN CONNECTIONS ===');
-    patterns.slice(0, 5).forEach((pattern, idx) => {
+    patterns.slice(0, 3).forEach((pattern, idx) => {
       const desc = pattern.description || pattern.pattern_type || '';
       if (desc && desc.length > 10) {
         parts.push(`• ${desc} (strength: ${pattern.strength || 0})`);
@@ -993,7 +1007,46 @@ async function detectBreakthroughs(convergence) {
     });
   }
 
-  // Priority 3: Memory context awareness (summary only, NOT full content)
+  // Priority 2.5: Insight narrative (consciousness-aware)
+  let insightNarrative = null;
+  for (const convResult of convergenceResults) {
+    if (convResult?.insight_narrative) {
+      insightNarrative = convResult.insight_narrative;
+      break;
+    }
+  }
+
+  if (insightNarrative && insightNarrative.length > 40 &&
+      !insightNarrative.includes('No new insights crystallizing yet')) {
+    parts.push('\n=== INSIGHT CONSCIOUSNESS ===');
+    parts.push(insightNarrative);
+  } else if (insights.length > 0) {
+    // Fallback to old format only if no narrative available
+    parts.push('\n=== INSIGHTS ===');
+    insights.slice(0, 3).forEach((insight) => {
+      const content = insight.content || insight.insight_content || '';
+      if (content && content.length > 10) {
+        parts.push(`• ${content}`);
+      }
+    });
+  }
+
+  // Priority 3: Reflection consciousness (behavioral impact awareness)
+  let reflectionNarrative = null;
+  for (const convResult of convergenceResults) {
+    if (convResult?.reflection_narrative) {
+      reflectionNarrative = convResult.reflection_narrative;
+      break;
+    }
+  }
+
+  if (reflectionNarrative && reflectionNarrative.length > 20 &&
+      !reflectionNarrative.includes('Reflecting on your journey')) {
+    parts.push('\n=== REFLECTION CONSCIOUSNESS ===');
+    parts.push(reflectionNarrative);
+  }
+
+  // Priority 4: Memory context awareness (summary only, NOT full content)
   if (recalledMemories.length > 0) {
     parts.push(`\n=== MEMORY CONTEXT ===`);
     parts.push(`Drawing from ${recalledMemories.length} relevant memories spanning recent interactions.`);
