@@ -57,6 +57,8 @@ import { useLongStriderStore } from "@/stores/longstrider-store"
 import { useConsciousnessStore } from "@/stores/consciousness-store"
 import { ModeAura, ModeAuraBackground } from "@/components/mode-aura"
 import { DynamicObject } from "./dynamic-metadata"
+import { MemorySurfaceCard } from "./memory-surface-card"
+import { ConsciousnessAgentCard } from "./consciousness-agent-card"
 import type { LSMessage } from "@/types/longstrider"
 
 // Import consciousness mapping library (Living Laws compliant)
@@ -142,6 +144,17 @@ interface EnhancedMessage {
 
     // Agent card data
     agent_card?: AgentMessage
+
+    // Consciousness agent card data (IVY's soul)
+    consciousness_agent?: {
+      id: string
+      agent: 'pattern_observer' | 'insight_illuminator' | 'reflection_witness'
+      title: string
+      narrative: string
+      icon: string
+      color: 'purple' | 'amber' | 'blue'
+      timestamp: Date
+    }
 
     // Dynamic fields
     [key: string]: any
@@ -349,6 +362,21 @@ function MessageCard({
 }) {
   const [expandedMetadata, setExpandedMetadata] = useState(false)
 
+  // PHASE 2: Memory surface cards are rendered separately
+  if (message.type === 'system' && message.kind === 'memory' && message.metadata?.surfaced_memories) {
+    return (
+      <div className="px-4 py-3">
+        <div className="max-w-5xl mx-auto">
+          <MemorySurfaceCard
+            memories={message.metadata.surfaced_memories}
+            recallStrategy={message.metadata.recall_strategy}
+            streams={message.metadata.streams}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // Agent cards are rendered separately (system messages with agent_card metadata)
   if (message.type === 'system' && message.metadata?.agent_card) {
     const handleCardAction = (actionId: string) => {
@@ -364,6 +392,25 @@ function MessageCard({
       <div className="px-4 py-3">
         <div className="max-w-5xl mx-auto">
           <AgentCard message={message.metadata.agent_card} onAction={handleCardAction} />
+        </div>
+      </div>
+    )
+  }
+
+  // Consciousness agent cards - IVY's soul speaking
+  if (message.type === 'system' && message.metadata?.consciousness_agent) {
+    const agentData = message.metadata.consciousness_agent
+
+    return (
+      <div className="px-4 py-3">
+        <div className="max-w-5xl mx-auto">
+          <ConsciousnessAgentCard
+            agent={agentData.agent}
+            title={agentData.title}
+            narrative={agentData.narrative}
+            icon={agentData.icon}
+            color={agentData.color}
+          />
         </div>
       </div>
     )
@@ -695,14 +742,72 @@ function MessageCard({
               </div>
             )}
 
-            {/* Token Count - Only show if significant (>500 tokens) */}
-            {message.metadata?.tokens && message.metadata.tokens > 500 && (
+            {/* Token Count with Savings */}
+            {message.metadata?.tokens && (
               <div
                 className="flex items-center gap-1 text-gray-500"
-                title={`${message.metadata.tokens} tokens used`}
+                title={`${message.metadata.tokens} tokens used${message.metadata.tokens_saved ? ` • ${message.metadata.tokens_saved} saved` : ''}`}
               >
                 <Binary className="w-3 h-3" />
                 <span>{message.metadata.tokens}t</span>
+                {message.metadata.tokens_saved && message.metadata.tokens_saved > 0 && (
+                  <span className="text-emerald-400">(-{message.metadata.tokens_saved})</span>
+                )}
+              </div>
+            )}
+
+            {/* Calculator Method */}
+            {message.metadata?.calculator_method && (
+              <div
+                className="flex items-center gap-1 text-yellow-400"
+                title={`Calculator: ${message.metadata.calculator_method}`}
+              >
+                <Zap className="w-3 h-3" />
+                <span>{message.metadata.calculator_method}</span>
+              </div>
+            )}
+
+            {/* Memory Depth */}
+            {message.metadata?.memory_depth && message.metadata.memory_depth > 0 && (
+              <div
+                className="flex items-center gap-1 text-indigo-400"
+                title={`${message.metadata.memory_depth} memories recalled`}
+              >
+                <Database className="w-3 h-3" />
+                <span>{message.metadata.memory_depth} memories</span>
+              </div>
+            )}
+
+            {/* Pattern Count from systems_active */}
+            {message.metadata?.systems_active?.patterns_detected && message.metadata.systems_active.patterns_detected > 0 && (
+              <div
+                className="flex items-center gap-1 text-purple-400"
+                title={`${message.metadata.systems_active.patterns_detected} patterns detected`}
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>{message.metadata.systems_active.patterns_detected} patterns</span>
+              </div>
+            )}
+
+            {/* Consciousness Coherence */}
+            {message.metadata?.consciousness_coherence && message.metadata.consciousness_coherence > 0.7 && (
+              <div
+                className="flex items-center gap-1 text-cyan-400"
+                title={`Consciousness coherence: ${Math.round(message.metadata.consciousness_coherence * 100)}%`}
+              >
+                <Waves className="w-3 h-3" />
+                <span>{Math.round(message.metadata.consciousness_coherence * 100)}% coherence</span>
+              </div>
+            )}
+
+            {/* Compression Ratio */}
+            {message.metadata?.compression_ratio && message.metadata.compression_ratio > 0 && (
+              <div
+                className="flex items-center gap-1 text-green-400"
+                title={`Compression: ${(message.metadata.compression_ratio * 100).toFixed(1)}%`}
+              >
+                <Activity className="w-3 h-3" />
+                <span>{(message.metadata.compression_ratio * 100).toFixed(1)}% compressed</span>
               </div>
             )}
           </div>
@@ -729,7 +834,9 @@ export function LongStriderChat() {
     conversationName,
     _hasHydrated,
     addMessage,
+    insertMessageAt,
     updateMessage,
+    getMessages,
     setCurrentThread,
     setCurrentSession,
     setMemoryTraceId,
@@ -1183,13 +1290,78 @@ export function LongStriderChat() {
                   break
                   
                 case 'memory_surfacing':
-                  // Update memory count for echo
-                  const memoryCount = parsed.count || (parsed.memories ? parsed.memories.length : 0)
+                  // PHASE 2: Display surfaced memories in chat
+                  // Handle both formats: full memories array or simplified content array
+                  let surfacedMemories: any[] = []
+                  
+                  if (parsed.memories && Array.isArray(parsed.memories)) {
+                    // Check if memories have full structure (id, content, gravity_score, etc.)
+                    if (parsed.memories[0]?.id || parsed.memories[0]?.content) {
+                      surfacedMemories = parsed.memories
+                    } else {
+                      // Simplified format from cce-response - skip for now (will be enhanced in future)
+                      console.log('🧠 Memory surfacing event received (simplified format, skipping display)')
+                      break
+                    }
+                  } else if (parsed.semantic && Array.isArray(parsed.semantic)) {
+                    surfacedMemories = parsed.semantic
+                  }
+                  
+                  const memoryCount = parsed.count || surfacedMemories.length
+
+                  if (currentThreadId && surfacedMemories.length > 0) {
+                    // Create a system message card for surfaced memories
+                    const now = Date.now()
+                    const isoNow = new Date(now).toISOString()
+                    
+                    const memoryCard: LSMessage = {
+                      id: `memory-surface-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+                      user_id: config?.userId || '',
+                      type: 'system',
+                      kind: 'memory',
+                      content: '', // Empty, will render custom component
+                      session_id: sessionId,
+                      thread_id: currentThreadId,
+                      memory_trace_id: traceId,
+                      conversation_name: conversationName || currentSpace?.name || 'LongStrider Session',
+                      gravity_score: 0.6,
+                      created_at: isoNow,
+                      t_ingested: isoNow,
+                      ts: now,
+                      metadata: {
+                        surfaced_memories: surfacedMemories,
+                        memory_count: memoryCount,
+                        recall_strategy: parsed.recall_strategy || parsed.strategy || 'hybrid',
+                        streams: parsed.streams || {
+                          semantic: parsed.semantic?.length || 0,
+                          recent: parsed.recent?.length || 0,
+                          entity: parsed.entity?.length || 0
+                        }
+                      }
+                    }
+
+                    // Find the index of the current streaming message to insert BEFORE it
+                    const threadMessages = getMessages(currentThreadId)
+                    const streamingIndex = threadMessages.findIndex(m => m.id === streamingMessageId)
+
+                    if (streamingIndex !== -1) {
+                      // Insert before streaming message so memories appear before AI response
+                      insertMessageAt(currentThreadId, streamingIndex, memoryCard)
+                      console.log(`🧠 Displayed ${surfacedMemories.length} surfaced memories before AI response`)
+                    } else {
+                      // Fallback: just add to end
+                      addMessage(currentThreadId, memoryCard)
+                      console.log(`🧠 Displayed ${surfacedMemories.length} surfaced memories`)
+                    }
+                  }
+
+                  // Also update the streaming message metadata for reference
                   if (currentThreadId) {
                     updateMessage(currentThreadId, messageId, {
                       metadata: {
+                        ...getMessages(currentThreadId).find(m => m.id === messageId)?.metadata,
                         memory_count: memoryCount,
-                        memory_samples: parsed.memories?.slice(0, 5) // Keep first 5 for reference
+                        memory_samples: surfacedMemories.slice(0, 5) // Keep first 5 for reference
                       }
                     })
                   }
@@ -1340,7 +1512,41 @@ export function LongStriderChat() {
                     })
                   }
                   break
-                  
+
+                case 'consciousness_agent':
+                  // IVY's soul speaking through consciousness agents
+                  if (currentThreadId && config) {
+                    const now = Date.now()
+                    const isoNow = new Date(now).toISOString()
+
+                    addMessage(currentThreadId, {
+                      id: crypto.randomUUID(),
+                      user_id: config.userId,
+                      type: 'system',
+                      content: '',
+                      session_id: sessionId,
+                      thread_id: currentThreadId,
+                      memory_trace_id: traceId,
+                      conversation_name: conversationName || currentSpace?.name || 'LongStrider Session',
+                      gravity_score: 0.8, // Consciousness agents are high gravity
+                      created_at: isoNow,
+                      t_ingested: isoNow,
+                      ts: now,
+                      metadata: {
+                        consciousness_agent: {
+                          id: crypto.randomUUID(),
+                          agent: parsed.agent, // pattern_observer, insight_illuminator, reflection_witness
+                          title: parsed.title,
+                          narrative: parsed.narrative,
+                          icon: parsed.icon,
+                          color: parsed.color,
+                          timestamp: new Date()
+                        }
+                      }
+                    })
+                  }
+                  break
+
                 case 'response_token':
                   // Stream tokens - field is 'token' not 'content'
                   accumulated += parsed.token || ''
@@ -1353,10 +1559,12 @@ export function LongStriderChat() {
                   break
                   
                 case 'response_complete':
-                  // Final update with all metadata
+                  // Final update with all metadata - CCE-O sends data in processing_metadata, not metadata
                   console.log('[DEBUG] response_complete received:', {
                     gravity_score: parsed.gravity_score,
                     metadata: parsed.metadata,
+                    processing_metadata: parsed.processing_metadata,
+                    memory_constellation: parsed.memory_constellation,
                     emotion: parsed.emotion,
                     emotional_field: parsed.emotional_field,
                     entities: parsed.entities,
@@ -1364,39 +1572,92 @@ export function LongStriderChat() {
                     full_parsed: parsed
                   })
 
-                  const finalMetadata = parsed.metadata || {}
-                  const finalGravity = parsed.gravity_score || finalMetadata.gravity_score || 0
+                  // Extract from processing_metadata (CCE-O's actual structure)
+                  const processingMeta = parsed.processing_metadata || {}
+                  const memoryConst = parsed.memory_constellation || {}
+                  const systemsActive = processingMeta.systems_active || {}
+
+                  // Gravity from memory_constellation.gravity_center
+                  const finalGravity = parsed.gravity_score || memoryConst.gravity_center || 0
                   const emotionalIntensity = parsed.emotional_field?.intensity || 0
                   const primaryEmotion = parsed.emotional_field?.primary || 'neutral'
+
+                  // PHASE 1: Extract memory_id from response (priority: top-level > processing_metadata > primary.id)
+                  const memoryId = parsed.memory_id || parsed.processing_metadata?.memory_id || parsed.primary?.id || null
 
                   if (currentThreadId) {
                     updateMessage(currentThreadId, messageId, {
                       content: accumulated || parsed.content,
                       isStreaming: false,
+                      // PHASE 1: Link message to memory
+                      memory_id: memoryId,
                       // TOP-LEVEL LSMessage fields (per LSMessage type definition)
                       gravity_score: finalGravity,
                       emotion: parsed.emotion || primaryEmotion,
                       sentiment: parsed.sentiment,
-                      entities: parsed.entities || finalMetadata.entities,
-                      statement_type: parsed.statement_type || finalMetadata.statement_type,
-                      confidence_score: parsed.confidence || finalMetadata.confidence_score,
-                      identity_anchor: finalMetadata.identity_anchor,
-                      // METADATA object for additional fields
+                      entities: parsed.entities,
+                      statement_type: parsed.statement_type,
+                      confidence_score: parsed.confidence,
+                      identity_anchor: parsed.identity_anchor,
+                      // METADATA object - COMPREHENSIVE mapping of CCE-O's actual structure
                       metadata: {
-                        ...finalMetadata,
-                        tokens: parsed.token_count || parsed.tokens,
-                        cost: parsed.cost,
-                        processing_time: parsed.processing_time_ms,
+                        // ===== FROM processing_metadata =====
+                        tokens: processingMeta.tokens_used || parsed.tokens || 0,
+                        tokens_saved: processingMeta.tokens_saved || 0,
+                        calculator_method: processingMeta.calculator_method,
+                        calculator_bypass: processingMeta.calculator_bypass,
+                        compression_ratio: processingMeta.compression_ratio,
+                        processing_time: processingMeta.processing_time_ms || parsed.processing_time_ms,
+                        recall_count: processingMeta.recall_count || 0,
+                        recall_success: processingMeta.recall_success,
+
+                        // ===== FROM systems_active (nested in processing_metadata) =====
+                        systems_active: {
+                          calculator: systemsActive.calculator,
+                          conductor_mode: systemsActive.conductor_mode,
+                          patterns_detected: systemsActive.patterns_detected || 0,
+                          insights_available: systemsActive.insights_available || 0,
+                          memory_compression: systemsActive.memory_compression
+                        },
+                        conductor_mode: systemsActive.conductor_mode,
+
+                        // ===== FROM memory_constellation =====
+                        memory_constellation: memoryConst,
+                        memory_depth: memoryConst.depth || 0,
+                        memory_gravity_center: memoryConst.gravity_center,
+
+                        // ===== PATTERNS - from memory_constellation.patterns array =====
+                        emerging_patterns: memoryConst.patterns || parsed.patterns || [],
+                        pattern_count: memoryConst.patterns?.length || 0,
+
+                        // ===== EMOTIONAL & CONSCIOUSNESS =====
                         emotional_field: parsed.emotional_field,
+                        emotional_intensity: parsed.emotional_field?.intensity || 0,
                         consciousness_state: parsed.consciousness_state,
-                        consciousness_mode: parsed.consciousness_mode || parsed.mode
+                        consciousness_mode: parsed.consciousness_state?.mode || parsed.mode,
+                        consciousness_coherence: parsed.consciousness_state?.coherence || 0,
+
+                        // ===== COST & EFFICIENCY =====
+                        cost: parsed.cost,
+                        efficiency: processingMeta.tokens_saved && processingMeta.tokens_used
+                          ? processingMeta.tokens_saved / (processingMeta.tokens_used + processingMeta.tokens_saved)
+                          : 0,
+                        // PHASE 1: Store memory_id in metadata for redundancy
+                        memory_id: memoryId
                       }
                     })
+
+                    // Log memory_id attachment for debugging
+                    if (memoryId) {
+                      console.log('🔗 Assistant message linked to memory:', memoryId)
+                    } else {
+                      console.warn('⚠️ No memory_id in response_complete event')
+                    }
                   }
                   
                   // BREAKTHROUGH DETECTION - Only create card if backend sent insight text
                   const isBreakthrough = finalGravity > 0.8 || emotionalIntensity > 0.7
-                  const isIdentityAnchor = finalMetadata.identity_anchor
+                  const isIdentityAnchor = parsed.identity_anchor
 
                   // Check if backend sent any agent insight/reflection text
                   const backendInsight = parsed.agent_insight || parsed.reflection || parsed.insight
@@ -1453,25 +1714,29 @@ export function LongStriderChat() {
                       type: 'insight',
                       content: accumulated || parsed.content,
                       metadata: {
-                        ...finalMetadata,
+                        gravity_score: finalGravity,
                         emotional_intensity: emotionalIntensity,
+                        emotional_field: parsed.emotional_field,
+                        consciousness_state: parsed.consciousness_state,
+                        memory_depth: memoryConst.depth,
+                        pattern_count: memoryConst.patterns?.length || 0,
                         breakthrough: true,
                         identity_anchor: isIdentityAnchor
                       }
                     })
                   }
                   
-                  // Update space analytics
+                  // Update space analytics with CCE-O data
                   if (currentThreadId && currentSpace) {
                     updateSpace(currentThreadId, {
                       analytics: {
                         message_count: (currentSpace.analytics.message_count || 0) + 1,
                         word_count: currentSpace.analytics.word_count || 0,
-                        pattern_count: currentSpace.analytics.pattern_count || 0,
+                        pattern_count: (currentSpace.analytics.pattern_count || 0) + (systemsActive.patterns_detected || 0),
                         complexity_score: currentSpace.analytics.complexity_score || 0,
                         gravity_score: finalGravity,
-                        tokens_used: (currentSpace.analytics.tokens_used || 0) + (parsed.tokens || 0),
-                        tokens_saved: currentSpace.analytics.tokens_saved || 0,
+                        tokens_used: (currentSpace.analytics.tokens_used || 0) + (processingMeta.tokens_used || 0),
+                        tokens_saved: (currentSpace.analytics.tokens_saved || 0) + (processingMeta.tokens_saved || 0),
                         estimated_cost: (currentSpace.analytics.estimated_cost || 0) + (parsed.cost || 0),
                         emotional_signature: currentSpace.analytics.emotional_signature || {
                           average_gravity: 0,
