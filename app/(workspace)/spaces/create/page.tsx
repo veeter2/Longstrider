@@ -3,21 +3,21 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card } from "@/components/ui/card"
 import { ArrowRight, Sparkles, Zap, Brain, Target } from "lucide-react"
 import { useConsciousnessStore } from "@/stores/consciousness-store"
 import { getCognitiveProfile, saveCognitiveProfile } from "@/lib/cognitive-profile"
+import { getIvyConfig } from "@/lib/supabase"
 import {
   spaceCreationQuestions,
   generateSpaceConfiguration,
+  createHierarchySpaces,
   type SpaceCreationResponse,
 } from "@/lib/space-creation-interview"
 
 export default function CreateSpacePage() {
   const router = useRouter()
   const createSpace = useConsciousnessStore((state) => state.createSpace)
+  const updateSpace = useConsciousnessStore((state) => state.updateSpace)
 
   const [step, setStep] = useState<"select" | "interview" | "generating">("select")
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
@@ -104,8 +104,77 @@ export default function CreateSpacePage() {
     // Generate configuration
     const config = generateSpaceConfiguration(responses, cognitiveProfile)
 
-    // Create space with full configuration
-    const newSpace = createSpace({
+    // Check if breakdown suggests hierarchy (has >, indentation, or multiple lines)
+    const breakdown = responses.find(r => r.questionId === 'breakdown')?.answer || ''
+    const hasHierarchy = breakdown.includes('>') || 
+                        breakdown.match(/^\s{2,}/m) !== null || 
+                        breakdown.split('\n').filter(l => l.trim()).length > 1
+
+    let newSpace
+    
+    if (hasHierarchy && config.hierarchy.children.length > 0) {
+      // Create hierarchy of spaces (parent → children → grandchildren)
+      try {
+        // Get user ID from config
+        const userId = getIvyConfig().userId || undefined
+        
+        const { parent } = await createHierarchySpaces(config, createSpace, updateSpace, userId)
+        newSpace = parent
+      } catch (error) {
+        console.error('Failed to create hierarchy, falling back to single space:', error)
+        // Fallback to single space creation
+        newSpace = createSpace({
+          name: config.name,
+          description: config.description,
+          type: "personal",
+          status: "active",
+          space_path: [config.name],
+          signals: [],
+          links: [],
+          goals: config.milestones.map((m) => ({
+            id: crypto.randomUUID(),
+            title: m.name,
+            description: m.description,
+            status: "active",
+            created_at: Date.now(),
+          })),
+          recent_activity: [{
+            id: crypto.randomUUID(),
+            type: "insight",
+            content: `Space created with ${config.mode} mode. Ready to collaborate!`,
+            timestamp: Date.now(),
+            gravity: 0.7,
+          }],
+          is_anchored: false,
+          is_favorite: false,
+          child_spaces: [],
+          active_rail_ids: [],
+          analytics: {
+            message_count: 0,
+            word_count: 0,
+            pattern_count: 0,
+            complexity_score: 0,
+            gravity_score: 0,
+            tokens_used: 0,
+            tokens_saved: 0,
+            estimated_cost: 0,
+            emotional_signature: {
+              average_gravity: 0,
+              dominant_emotion: "neutral",
+              emotional_arc: [],
+            },
+          },
+          meta_cognition_profile: {
+            depth: config.communicationStyle.depth / 10,
+            complexity: 0.5,
+            evolution_rate: 0.5,
+            abstraction_level: 0.5,
+          },
+        })
+      }
+    } else {
+      // Create single space (simple case or no hierarchy detected)
+      newSpace = createSpace({
       name: config.name,
       description: config.description,
       type: "personal",
@@ -155,6 +224,7 @@ export default function CreateSpacePage() {
         abstraction_level: 0.5,
       },
     })
+    }
 
     // Store space configuration as metadata (for LLM context)
     localStorage.setItem(`space_config_${newSpace.id}`, JSON.stringify(config))

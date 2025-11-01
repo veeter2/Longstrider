@@ -672,6 +672,10 @@ async function buildMinimalConversationContext(session_id, user_id) {
     emotional_journey: consciousness.emotional_journey || {},
     key_themes: consciousness.key_themes || [],
     cortex_instructions: consciousness.cortex_instructions || [],
+    // ✨ SOUL PIPELINE: Pass consciousness narratives to Response Engine
+    pattern_narrative: consciousness.pattern_narrative || null,
+    insight_narrative: consciousness.insight_narrative || null,
+    reflection_narrative: consciousness.reflection_narrative || null,
     // CORTEX STATE (optional but recommended)
     consciousness_state,
     // CONVERSATION CONTEXT (for pronoun resolution and continuity)

@@ -38,6 +38,8 @@ import {
 import type { MemorySpace, MemoryCluster } from '@/types/longstrider'
 import { useConsciousnessStore, type SpaceGoal } from '@/stores/consciousness-store'
 import { useLongStriderStore } from '@/stores/longstrider-store'
+import { MemoryTimeline } from '@/components/living-memory/memory-timeline'
+import { getIvyConfig } from '@/lib/supabase'
 
 // ============================
 // LONGSTRIDER LEFT RAIL
@@ -603,6 +605,8 @@ export function LongStriderLeftRail({
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<MemorySpace['status'] | 'all'>('all')
   const [showArchived, setShowArchived] = useState(false)
+  // PHASE 1: Tab state for Spaces/Memory switching
+  const [activeTab, setActiveTab] = useState<'spaces' | 'memories'>('spaces')
 
   // ============================
   // REAL DATA FROM STORES
@@ -841,43 +845,57 @@ export function LongStriderLeftRail({
       className
     )}>
       {/* Header - Clean & Minimal */}
-      <div className="p-4 border-b border-white/10">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Brain className="w-5 h-5 text-indigo-400" />
-            <h2 className="text-lg font-semibold text-gray-100">LongStrider</h2>
+      <div className="border-b border-white/10">
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-indigo-400" />
+              <h2 className="text-lg font-semibold text-gray-100">LongStrider</h2>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onCreateSpace}
+                className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 transition-all duration-200 hover:scale-105"
+                title="Create New Space"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={onCreateSpace}
-              className="p-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 transition-all duration-200 hover:scale-105"
-              title="Create New Space"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => router.push('/living-memory')}
-              className="px-2.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-200 text-xs font-medium flex items-center gap-1.5"
-              title="Open Living Memory"
-            >
-              <Target className="w-3.5 h-3.5" />
-              Memory
-            </button>
-          </div>
+        </div>
+
+        {/* PHASE 1: Tab Buttons for Spaces/Memory */}
+        <div className="flex border-t border-white/10">
+          <TabButton
+            active={activeTab === 'spaces'}
+            onClick={() => setActiveTab('spaces')}
+            icon={GitBranch}
+          >
+            Spaces
+          </TabButton>
+          <TabButton
+            active={activeTab === 'memories'}
+            onClick={() => setActiveTab('memories')}
+            icon={Database}
+          >
+            Memory
+          </TabButton>
         </div>
       </div>
       
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Current Session Card */}
-        <CurrentSessionCard
-          space={currentSpace}
-          onNavigateToMemory={() => router.push('/living-memory')}
-          onUpdateSpace={handleUpdateSpace}
-        />
+      {/* Content Area - Tab-based */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {activeTab === 'spaces' && (
+          <div className="flex-1 overflow-y-auto">
+            {/* Current Session Card */}
+            <CurrentSessionCard
+              space={currentSpace}
+              onNavigateToMemory={() => router.push('/living-memory')}
+              onUpdateSpace={handleUpdateSpace}
+            />
 
-        {/* Recent Sessions - Dimmed */}
-        {recentSessions.length > 0 && (
+            {/* Recent Sessions - Dimmed */}
+            {recentSessions.length > 0 && (
           <div className="px-4 mt-6 opacity-60 hover:opacity-100 transition-opacity duration-300">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
@@ -922,8 +940,58 @@ export function LongStriderLeftRail({
             </div>
           </div>
         )}
+          </div>
+        )}
+
+        {activeTab === 'memories' && (
+          <div className="flex-1 overflow-hidden">
+            {(() => {
+              const { userId } = getIvyConfig()
+              if (!userId) {
+                return (
+                  <div className="p-4 text-center text-gray-400 text-sm">
+                    User not authenticated
+                  </div>
+                )
+              }
+              return (
+                <MemoryTimeline
+                  userId={userId}
+                  threadId={currentThreadId || undefined}
+                  limit={50}
+                  showFilters={true}
+                />
+              )
+            })()}
+          </div>
+        )}
       </div>
     </div>
+  )
+}
+
+// PHASE 1: Tab Button Component with proper types
+interface TabButtonProps {
+  active: boolean
+  onClick: () => void
+  icon: React.ComponentType<{ className?: string }>
+  children: React.ReactNode
+}
+
+function TabButton({ active, onClick, icon: Icon, children }: TabButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cx(
+        "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm transition-all border-b-2",
+        active
+          ? "text-[rgb(var(--band-gamma-low))] border-[rgb(var(--band-gamma-low))] bg-[rgba(var(--band-gamma-low),0.05)]"
+          : "text-[rgb(var(--band-gamma-low))] border-transparent hover:bg-[rgba(var(--band-infra),0.1)] hover:text-[rgb(var(--band-gamma-high))]"
+      )}
+    >
+      <Icon className="w-4 h-4" />
+      {children}
+    </button>
   )
 }
 

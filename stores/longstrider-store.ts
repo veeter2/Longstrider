@@ -42,7 +42,8 @@ export interface LongStriderState {
   // MESSAGE ACTIONS
   // ============================
 
-  addMessage: (threadId: string, message: LSMessage) => void
+  addMessage: (threadId: string, message: LSMessage, memoryId?: string) => void
+  insertMessageAt: (threadId: string, index: number, message: LSMessage) => void
   updateMessage: (threadId: string, messageId: string, updates: Partial<LSMessage>) => void
   deleteMessage: (threadId: string, messageId: string) => void
   clearMessages: (threadId: string) => void
@@ -120,16 +121,37 @@ export const useLongStriderStore = create<LongStriderState>()(
       },
 
       // Message Actions
-      addMessage: (threadId, message) => {
+      // PHASE 1: Backward-compatible signature - memoryId is optional
+      addMessage: (threadId, message, memoryId) => {
         set((state) => {
           const threadMessages = state.messagesByThread[threadId] || []
+          
+          // Attach memory_id if provided (doesn't override if already in message)
+          const messageWithMemory = memoryId && !message.memory_id
+            ? { ...message, memory_id: memoryId }
+            : message
+          
           return {
             messagesByThread: {
               ...state.messagesByThread,
-              [threadId]: [...threadMessages, message]
+              [threadId]: [...threadMessages, messageWithMemory]
             },
             // Set first message timestamp if not set
             firstMessageTimestamp: state.firstMessageTimestamp || Date.now()
+          }
+        })
+      },
+
+      insertMessageAt: (threadId, index, message) => {
+        set((state) => {
+          const threadMessages = state.messagesByThread[threadId] || []
+          const newMessages = [...threadMessages]
+          newMessages.splice(index, 0, message)
+          return {
+            messagesByThread: {
+              ...state.messagesByThread,
+              [threadId]: newMessages
+            }
           }
         })
       },

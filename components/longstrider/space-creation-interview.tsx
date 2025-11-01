@@ -24,9 +24,11 @@ import {
 import { useConsciousnessStore } from '@/stores/consciousness-store'
 import { useLongStriderStore } from '@/stores/longstrider-store'
 import { getCognitiveProfile } from '@/lib/cognitive-profile'
+import { getIvyConfig } from '@/lib/supabase'
 import {
   spaceCreationQuestions,
   generateSpaceConfiguration,
+  createHierarchySpaces,
   type SpaceCreationResponse
 } from '@/lib/space-creation-interview'
 import type { LSMessage } from '@/types/longstrider'
@@ -168,7 +170,7 @@ interface SpaceCreationInterviewProps {
 }
 
 export function SpaceCreationInterview({ onComplete, onCancel }: SpaceCreationInterviewProps) {
-  const { createSpace } = useConsciousnessStore()
+  const { createSpace, updateSpace } = useConsciousnessStore()
   const { setCurrentThread, addMessage } = useLongStriderStore()
 
   const [step, setStep] = useState<InterviewStep>('greeting')
@@ -356,7 +358,7 @@ export function SpaceCreationInterview({ onComplete, onCancel }: SpaceCreationIn
   }
 
   // Create space with full configuration
-  const createSpaceFromInterview = () => {
+  const createSpaceFromInterview = async () => {
     const cognitiveProfile = getCognitiveProfile() || {
       userId: 'default',
       createdAt: Date.now(),
@@ -378,7 +380,22 @@ export function SpaceCreationInterview({ onComplete, onCancel }: SpaceCreationIn
 
     const config = generateSpaceConfiguration(fullResponses, cognitiveProfile)
 
-    // Create space
+    // Get user ID from config
+    const userId = getIvyConfig().userId || undefined // Pass undefined if not available
+
+    // Create hierarchy of spaces (parent → children → grandchildren)
+    const { parent, children, grandchildren } = await createHierarchySpaces(
+      config,
+      createSpace,
+      updateSpace,
+      userId || undefined
+    )
+
+    // Use parent space as the main space
+    const newSpace = parent
+
+    // Create space (keeping old single-space logic as fallback if no hierarchy)
+    /*
     const newSpace = createSpace({
       name: config.name,
       type: 'personal',
@@ -420,6 +437,7 @@ export function SpaceCreationInterview({ onComplete, onCancel }: SpaceCreationIn
         }
       }
     })
+    */
 
     // Build final summary
     const teamMembers = selectedTeam.map(id => MOCK_TEAM_MEMBERS.find(m => m.id === id)?.name).filter(Boolean)
@@ -431,10 +449,16 @@ export function SpaceCreationInterview({ onComplete, onCancel }: SpaceCreationIn
       ? config.successCriteria.map(c => `• ${c}`).join('\n')
       : 'Working toward meaningful progress'
 
-    const kickoffMessage = `I've set up your **${config.name}** space! Here's what I pulled together:
+    // Build hierarchy summary
+    const hierarchySummary = children.length > 0 
+      ? `\n\n**Structure Created:**
+• ${newSpace.name}${children.length > 0 ? `\n${children.map((c: any) => `  • ${c.name}${grandchildren.filter((gc: any) => gc.parent_space_id === c.id).length > 0 ? `\n${grandchildren.filter((gc: any) => gc.parent_space_id === c.id).map((gc: any) => `    • ${gc.name}`).join('\n')}` : ''}`).join('\n')}` : ''}`
+      : ''
+
+    const kickoffMessage = `I've set up your **${config.name}** project! Here's what I pulled together:
 
 🎯 **Your Goal:** ${config.goal}
-${teamMembers.length > 0 ? `\n👥 **Team:** ${teamMembers.join(', ')}` : ''}${expertName ? `\n\n🤖 **AI Thought Partner:** ${expertName}` : ''}${knowledgeItems.length > 0 ? `\n\n📚 **Knowledge Docs Loaded:**\n${knowledgeItems.map(k => `• ${k}`).join('\n')}` : ''}${memories.length > 0 ? `\n\n🧠 **Related Past Work:**\n${memories.map(m => m ? `• ${m.substring(0, 80)}${m.length > 80 ? '...' : ''}` : '').filter(Boolean).join('\n')}` : ''}
+${teamMembers.length > 0 ? `\n👥 **Team:** ${teamMembers.join(', ')}` : ''}${expertName ? `\n\n🤖 **AI Thought Partner:** ${expertName}` : ''}${knowledgeItems.length > 0 ? `\n\n📚 **Knowledge Docs Loaded:**\n${knowledgeItems.map(k => `• ${k}`).join('\n')}` : ''}${memories.length > 0 ? `\n\n🧠 **Related Past Work:**\n${memories.map(m => m ? `• ${m.substring(0, 80)}${m.length > 80 ? '...' : ''}` : '').filter(Boolean).join('\n')}` : ''}${hierarchySummary}
 
 **Success Milestones:**
 ${goalSummary}
@@ -505,7 +529,7 @@ I'm here to help you make progress. What would you like to tackle first?`
   // ============================================================================
 
   return (
-    <div className="h-full flex flex-col bg-slate-950">
+    <div className="h-full flex flex-col bg-[rgb(var(--band-infra))]">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-6 py-8 space-y-6">
         <AnimatePresence mode="popLayout">
@@ -586,14 +610,28 @@ I'm here to help you make progress. What would you like to tackle first?`
           >
             <button
               onClick={() => handleGreetingChoice('quick')}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:border-cyan-500/50 transition-all duration-200 text-sm font-medium"
+              className="px-6 py-3 rounded-lg
+                bg-[rgba(var(--band-chi-cyan),0.1)]
+                border border-[rgba(var(--band-chi-cyan),0.3)]
+                hover:bg-[rgba(var(--band-chi-cyan),0.15)]
+                hover:border-[rgba(var(--band-chi-cyan),0.5)]
+                text-sm font-medium
+                text-[rgb(var(--band-chi-cyan))]
+                transition-all duration-200"
             >
               <Zap className="w-4 h-4 inline mr-2" />
               Quick Chat
             </button>
             <button
               onClick={() => handleGreetingChoice('guided')}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-200 text-sm font-medium"
+              className="px-6 py-3 rounded-lg
+                bg-[rgba(var(--band-theta-high),0.1)]
+                border border-[rgba(var(--band-theta-high),0.3)]
+                hover:bg-[rgba(var(--band-theta-high),0.15)]
+                hover:border-[rgba(var(--band-theta-high),0.5)]
+                text-sm font-medium
+                text-[rgb(var(--band-theta-high))]
+                transition-all duration-200"
             >
               <Sparkles className="w-4 h-4 inline mr-2" />
               New Project
@@ -608,7 +646,7 @@ I'm here to help you make progress. What would you like to tackle first?`
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center justify-center py-8"
           >
-            <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-[rgb(var(--band-theta-high))]" />
           </motion.div>
         )}
 
@@ -620,7 +658,7 @@ I'm here to help you make progress. What would you like to tackle first?`
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex-shrink-0 border-t border-white/10 bg-slate-900/50 backdrop-blur-sm p-6"
+          className="flex-shrink-0 border-t border-slate-800 bg-slate-900 p-6"
         >
           <div className="max-w-3xl mx-auto">
             <div className="relative">
@@ -637,13 +675,25 @@ I'm here to help you make progress. What would you like to tackle first?`
                   }
                 }}
                 placeholder="Type your response..."
-                className="w-full bg-slate-800/50 border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm resize-none focus:outline-none focus:border-purple-500/50 transition-colors"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 pr-12 text-sm resize-none 
+                  focus:outline-none 
+                  focus:ring-2 focus:ring-[rgba(var(--band-theta-high),0.3)]
+                  focus:border-[rgb(var(--band-theta-high))]
+                  text-slate-100 placeholder:text-slate-500
+                  transition-all duration-200"
                 rows={2}
               />
               <button
                 onClick={handleSubmitInput}
                 disabled={!userInput.trim()}
-                className="absolute right-3 bottom-3 p-2 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+                className="absolute right-3 bottom-3 p-2 rounded-lg 
+                  bg-[rgba(var(--band-theta-high),0.2)]
+                  hover:bg-[rgba(var(--band-theta-high),0.3)]
+                  border border-[rgba(var(--band-theta-high),0.3)]
+                  hover:border-[rgba(var(--band-theta-high),0.5)]
+                  disabled:opacity-30 disabled:cursor-not-allowed
+                  text-[rgb(var(--band-theta-high))]
+                  transition-all duration-200"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -665,12 +715,17 @@ I'm here to help you make progress. What would you like to tackle first?`
 function LongStriderBubble({ message }: { message: InterviewMessage }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-pink-500/30 border border-purple-500/50 flex items-center justify-center flex-shrink-0">
-        <Brain className="w-5 h-5 text-purple-300" />
+      {/* Avatar - Using γ₁ (Gamma-Low) for chat/synthesis per Living Laws */}
+      <div className="w-10 h-10 rounded-full 
+        bg-[rgba(var(--band-gamma-low),0.15)]
+        border border-[rgba(var(--band-gamma-low),0.3)]
+        flex items-center justify-center flex-shrink-0">
+        <Brain className="w-5 h-5 text-[rgb(var(--band-gamma-low))]" />
       </div>
       <div className="flex-1 max-w-2xl">
-        <div className="text-xs text-gray-500 mb-1">LongStrider</div>
-        <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/20 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+        <div className="text-xs text-slate-400 mb-1">LongStrider</div>
+        {/* Message bubble - OPAQUE for readability (Living Laws 2.2) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
       </div>
@@ -681,12 +736,17 @@ function LongStriderBubble({ message }: { message: InterviewMessage }) {
 function UserBubble({ message }: { message: InterviewMessage }) {
   return (
     <div className="flex items-start gap-3 flex-row-reverse">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-500/50 flex items-center justify-center flex-shrink-0">
-        <User className="w-5 h-5 text-cyan-300" />
+      {/* Avatar - Using β₁ (Beta-Low) for active thinking per Living Laws */}
+      <div className="w-10 h-10 rounded-full 
+        bg-[rgba(var(--band-beta-low),0.15)]
+        border border-[rgba(var(--band-beta-low),0.3)]
+        flex items-center justify-center flex-shrink-0">
+        <User className="w-5 h-5 text-[rgb(var(--band-beta-low))]" />
       </div>
       <div className="flex-1 max-w-2xl flex flex-col items-end">
-        <div className="text-xs text-gray-500 mb-1">You</div>
-        <div className="bg-gradient-to-br from-cyan-900/30 to-blue-900/30 border border-cyan-500/20 rounded-2xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
+        <div className="text-xs text-slate-400 mb-1">You</div>
+        {/* Message bubble - OPAQUE for readability (Living Laws 2.2) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl rounded-tr-sm px-4 py-3 text-sm leading-relaxed">
           {message.content}
         </div>
       </div>
@@ -719,9 +779,9 @@ function TeamSelector({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="ml-16 mt-4 p-4 rounded-xl bg-slate-900/50 border border-white/10 max-w-xl"
+      className="ml-16 mt-4 p-4 rounded-lg bg-slate-900 border border-slate-800 max-w-xl"
     >
-      <div className="text-xs text-gray-400 mb-3 flex items-center gap-2">
+      <div className="text-xs text-slate-400 mb-3 flex items-center gap-2">
         <Users className="w-3 h-3" />
         Select team members (based on past collaborations)
       </div>
@@ -732,24 +792,30 @@ function TeamSelector({
             onClick={() => toggleMember(member.id)}
             className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
               selected.includes(member.id)
-                ? 'bg-purple-500/20 border-purple-500/50'
-                : 'bg-slate-800/30 border-white/5 hover:border-white/10'
+                ? 'bg-[rgba(var(--band-theta-high),0.15)] border-[rgba(var(--band-theta-high),0.4)]'
+                : 'bg-slate-800 border-slate-700 hover:border-slate-600'
             }`}
           >
             <div className="text-2xl">{member.avatar}</div>
             <div className="flex-1 text-left">
-              <div className="text-sm font-medium">{member.name}</div>
-              <div className="text-xs text-gray-500">{member.role} • {member.projectCount} projects</div>
+              <div className="text-sm font-medium text-slate-100">{member.name}</div>
+              <div className="text-xs text-slate-400">{member.role} • {member.projectCount} projects</div>
             </div>
             {selected.includes(member.id) && (
-              <Check className="w-4 h-4 text-purple-400" />
+              <Check className="w-4 h-4 text-[rgb(var(--band-theta-high))]" />
             )}
           </button>
         ))}
       </div>
       <button
         onClick={onContinue}
-        className="w-full py-2 px-4 rounded-lg bg-purple-500 hover:bg-purple-600 transition-colors text-sm font-medium"
+        className="w-full py-2 px-4 rounded-lg 
+          bg-[rgba(var(--band-theta-high),0.2)]
+          hover:bg-[rgba(var(--band-theta-high),0.3)]
+          border border-[rgba(var(--band-theta-high),0.3)]
+          hover:border-[rgba(var(--band-theta-high),0.5)]
+          text-[rgb(var(--band-theta-high))]
+          transition-all duration-200 text-sm font-medium"
       >
         Continue
       </button>
@@ -770,9 +836,9 @@ function AIExpertSelector({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="ml-16 mt-4 p-4 rounded-xl bg-slate-900/50 border border-white/10 max-w-xl"
+      className="ml-16 mt-4 p-4 rounded-lg bg-slate-900 border border-slate-800 max-w-xl"
     >
-      <div className="text-xs text-gray-400 mb-3 flex items-center gap-2">
+      <div className="text-xs text-slate-400 mb-3 flex items-center gap-2">
         <Brain className="w-3 h-3" />
         Choose your AI thought partner
       </div>
@@ -783,24 +849,27 @@ function AIExpertSelector({
             onClick={() => onSelect(expert.id)}
             className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
               selected === expert.id
-                ? 'bg-purple-500/20 border-purple-500/50'
-                : 'bg-slate-800/30 border-white/5 hover:border-white/10'
+                ? 'bg-[rgba(var(--band-theta-high),0.15)] border-[rgba(var(--band-theta-high),0.4)]'
+                : 'bg-slate-800 border-slate-700 hover:border-slate-600'
             }`}
           >
             <div className="text-2xl">{expert.icon}</div>
             <div className="flex-1 text-left">
-              <div className="text-sm font-medium flex items-center gap-2">
+              <div className="text-sm font-medium flex items-center gap-2 text-slate-100">
                 {expert.name}
                 {expert.id === 'phd-ee' && (
-                  <span className="text-xs px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <span className="text-xs px-2 py-0.5 rounded 
+                    bg-[rgba(var(--band-xi),0.2)]
+                    text-[rgb(var(--band-xi))]
+                    border border-[rgba(var(--band-xi),0.3)]">
                     Recommended
                   </span>
                 )}
               </div>
-              <div className="text-xs text-gray-500 mt-1">{expert.description}</div>
+              <div className="text-xs text-slate-400 mt-1">{expert.description}</div>
             </div>
             {selected === expert.id && (
-              <Check className="w-4 h-4 text-purple-400" />
+              <Check className="w-4 h-4 text-[rgb(var(--band-theta-high))]" />
             )}
           </button>
         ))}
@@ -808,7 +877,14 @@ function AIExpertSelector({
       <button
         onClick={onContinue}
         disabled={!selected}
-        className="w-full py-2 px-4 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-sm font-medium"
+        className="w-full py-2 px-4 rounded-lg 
+          bg-[rgba(var(--band-theta-high),0.2)]
+          hover:bg-[rgba(var(--band-theta-high),0.3)]
+          border border-[rgba(var(--band-theta-high),0.3)]
+          hover:border-[rgba(var(--band-theta-high),0.5)]
+          disabled:opacity-30 disabled:cursor-not-allowed
+          text-[rgb(var(--band-theta-high))]
+          transition-all duration-200 text-sm font-medium"
       >
         Continue
       </button>
@@ -863,11 +939,11 @@ function KnowledgePreview({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="ml-16 mt-4 p-4 rounded-xl bg-slate-900/50 border border-white/10 max-w-2xl"
+      className="ml-16 mt-4 p-4 rounded-lg bg-slate-900 border border-slate-800 max-w-2xl"
     >
       {/* Knowledge Items */}
       <div className="mb-4">
-        <div className="text-xs text-gray-400 mb-3 flex items-center gap-2">
+        <div className="text-xs text-slate-400 mb-3 flex items-center gap-2">
           <BookOpen className="w-3 h-3" />
           Knowledge Library
         </div>
@@ -878,19 +954,19 @@ function KnowledgePreview({
               onClick={() => toggleKnowledge(item.id)}
               className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-all duration-200 ${
                 selectedKnowledge.includes(item.id)
-                  ? 'bg-purple-500/20 border-purple-500/50'
-                  : 'bg-slate-800/30 border-white/5 hover:border-white/10'
+                  ? 'bg-[rgba(var(--band-theta-high),0.15)] border-[rgba(var(--band-theta-high),0.4)]'
+                  : 'bg-slate-800 border-slate-700 hover:border-slate-600'
               }`}
             >
               <div className="text-xl">{item.icon}</div>
               <div className="flex-1 text-left">
-                <div className="text-sm font-medium">{item.title}</div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-sm font-medium text-slate-100">{item.title}</div>
+                <div className="text-xs text-slate-400 mt-1">
                   By {item.author} • {item.date}
                 </div>
               </div>
               {selectedKnowledge.includes(item.id) && (
-                <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[rgb(var(--band-theta-high))] flex-shrink-0" />
               )}
             </button>
           ))}
@@ -899,7 +975,7 @@ function KnowledgePreview({
 
       {/* Memories */}
       <div className="mb-4">
-        <div className="text-xs text-gray-400 mb-3 flex items-center gap-2">
+        <div className="text-xs text-slate-400 mb-3 flex items-center gap-2">
           <Database className="w-3 h-3" />
           Related Memories
         </div>
@@ -910,14 +986,14 @@ function KnowledgePreview({
               onClick={() => toggleMemory(memory.id)}
               className={`w-full flex items-start gap-3 p-3 rounded-lg border transition-all duration-200 ${
                 selectedMemories.includes(memory.id)
-                  ? 'bg-purple-500/20 border-purple-500/50'
-                  : 'bg-slate-800/30 border-white/5 hover:border-white/10'
+                  ? 'bg-[rgba(var(--band-theta-high),0.15)] border-[rgba(var(--band-theta-high),0.4)]'
+                  : 'bg-slate-800 border-slate-700 hover:border-slate-600'
               }`}
             >
               <div className="text-xl">{memory.icon}</div>
               <div className="flex-1 text-left">
-                <div className="text-sm">{memory.content}</div>
-                <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                <div className="text-sm text-slate-100">{memory.content}</div>
+                <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
                   {memory.date}
                   <span className="flex items-center gap-1">
                     <Zap className="w-3 h-3" />
@@ -926,7 +1002,7 @@ function KnowledgePreview({
                 </div>
               </div>
               {selectedMemories.includes(memory.id) && (
-                <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[rgb(var(--band-theta-high))] flex-shrink-0" />
               )}
             </button>
           ))}
@@ -935,7 +1011,13 @@ function KnowledgePreview({
 
       <button
         onClick={onConfirm}
-        className="w-full py-3 px-4 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 transition-all text-sm font-medium"
+        className="w-full py-3 px-4 rounded-lg 
+          bg-[rgba(var(--band-theta-high),0.2)]
+          hover:bg-[rgba(var(--band-theta-high),0.3)]
+          border border-[rgba(var(--band-theta-high),0.3)]
+          hover:border-[rgba(var(--band-theta-high),0.5)]
+          text-[rgb(var(--band-theta-high))]
+          transition-all duration-200 text-sm font-medium"
       >
         <Sparkles className="w-4 h-4 inline mr-2" />
         Create Space with Selected Context

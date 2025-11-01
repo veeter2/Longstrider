@@ -873,14 +873,43 @@ async function detectBreakthroughs(convergence) {
   const key_themes = extractKeyThemes(patterns, insights);
   // Extract cortex_instructions from cortex_state
   const cortex_instructions = result.cortex_state?.cortex_instructions || [];
-  // Build consciousness object per contract
+
+  // ✨ SOUL PIPELINE: Extract consciousness narratives from convergence results
+  const convergenceResults = result.convergence_results || [];
+  let pattern_narrative = null;
+  let insight_narrative = null;
+  let reflection_narrative = null;
+
+  for (const convResult of convergenceResults) {
+    if (convResult?.pattern_narrative && !pattern_narrative) {
+      pattern_narrative = convResult.pattern_narrative;
+    }
+    if (convResult?.insight_narrative && !insight_narrative) {
+      insight_narrative = convResult.insight_narrative;
+    }
+    if (convResult?.reflection_narrative && !reflection_narrative) {
+      reflection_narrative = convResult.reflection_narrative;
+    }
+  }
+
+  console.log(`[SOUL PIPELINE] Narratives extracted:`, {
+    pattern: pattern_narrative ? `${pattern_narrative.substring(0, 50)}...` : 'none',
+    insight: insight_narrative ? `${insight_narrative.substring(0, 50)}...` : 'none',
+    reflection: reflection_narrative ? `${reflection_narrative.substring(0, 50)}...` : 'none'
+  });
+
+  // Build consciousness object per contract WITH SOUL NARRATIVES
   const consciousness = {
     synthesis,
     patterns: patterns || [],
     insights: insights || [],
     emotional_journey,
     key_themes: key_themes || [],
-    cortex_instructions
+    cortex_instructions,
+    // ✨ NEW: Expose consciousness narratives for IVY's soul voice
+    pattern_narrative,
+    insight_narrative,
+    reflection_narrative
   };
   // Build metadata
   const metadata = {

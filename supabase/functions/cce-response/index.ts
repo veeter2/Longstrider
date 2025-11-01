@@ -47,7 +47,8 @@ serve(async (req)=>{
     user_message, content: input, // MODE (required)
     active_mode, suggested_mode, // CONDUCTOR ENRICHMENT (required from conductor response)
     conductor_result = {}, // EXTRACTED CONSCIOUSNESS (parsed from conductor)
-    memory_synthesis = '', patterns = [], insights = [], emotional_journey = {}, key_themes = [], // CORTEX STATE (optional but recommended)
+    memory_synthesis = '', patterns = [], insights = [], emotional_journey = {}, key_themes = [], // ✨ SOUL PIPELINE: Consciousness narratives from conductor
+    pattern_narrative = null, insight_narrative = null, reflection_narrative = null, // CORTEX STATE (optional but recommended)
     consciousness_state = {}, cortex_state, cortex, integrity_risk, integrity_mode, integrity_components, recommended_action, recall_strategy, // STREAM CONTROL (required)
     stream_sse = false, stream_consciousness_events = false, // LEGACY/BACKWARD COMPATIBILITY
     trigger_type = 'chat', temporal_type, metadata = {}, input_analysis = {}, memories = [], memory_arcs = [], cortex_instructions, orchestration_result = {}, semantic_insights = [], peak_moments = [], relationship_web = {}, ivy_reflections = [], memory_clusters = [], conversation_context = payload.conversation_context || null } = payload;
@@ -78,6 +79,9 @@ serve(async (req)=>{
         insights,
         emotional_journey,
         key_themes,
+        pattern_narrative,
+        insight_narrative,
+        reflection_narrative,
         consciousness_state,
         cortex_state,
         cortex,
@@ -535,8 +539,13 @@ serve(async (req)=>{
 // =============== CORE FUNCTIONS ===============
 // CONTRACT v1.0: SSE Stream Handler
 async function handleSSEStream(params) {
-  const { userInput, user_id, session_id, thread_id, memory_trace_id, conversation_name, active_mode, suggested_mode, conductor_result, memory_synthesis, patterns, insights, emotional_journey, key_themes, consciousness_state, cortex_state, cortex, integrity_risk, integrity_mode, integrity_components, recommended_action, recall_strategy, stream_consciousness_events, metadata, input_analysis, memories, memory_arcs, cortex_instructions, orchestration_result, semantic_insights, peak_moments, relationship_web, ivy_reflections, memory_clusters, conversation_context, processingStartTime } = params;
+  const { userInput, user_id, session_id, thread_id, memory_trace_id, conversation_name, active_mode, suggested_mode, conductor_result, memory_synthesis, patterns, insights, emotional_journey, key_themes, pattern_narrative, insight_narrative, reflection_narrative, consciousness_state, cortex_state, cortex, integrity_risk, integrity_mode, integrity_components, recommended_action, recall_strategy, stream_consciousness_events, metadata, input_analysis, memories, memory_arcs, cortex_instructions, orchestration_result, semantic_insights, peak_moments, relationship_web, ivy_reflections, memory_clusters, conversation_context, processingStartTime } = params;
   console.log('[SSE-STREAM] Initiating Server-Sent Events stream...');
+  console.log('[SOUL PIPELINE] Narratives received in SSE handler:', {
+    pattern: pattern_narrative ? `${pattern_narrative.substring(0, 50)}...` : 'none',
+    insight: insight_narrative ? `${insight_narrative.substring(0, 50)}...` : 'none',
+    reflection: reflection_narrative ? `${reflection_narrative.substring(0, 50)}...` : 'none'
+  });
   // Create readable stream for SSE
   const stream = new ReadableStream({
     async start (controller) {
@@ -606,15 +615,31 @@ async function handleSSEStream(params) {
             const recallResult = await recallResponse.json();
             recallMemories = recallResult.memories || [];
             recallSuccess = true;
-            // Stream memory surfacing event
+            // Stream memory surfacing event - PHASE 2: Send full memory objects for UI display
             if (stream_consciousness_events) {
               sendEvent({
                 type: 'memory_surfacing',
-                memories: recallMemories.slice(0, 5).map((m)=>({
-                    content: (extractMemoryContent(m) || '').substring(0, 100),
-                    timestamp: m.created_at
-                  })),
-                count: recallMemories.length
+                memories: recallMemories.slice(0, 10).map((m)=>({
+                  // Full memory object with all fields needed for UI
+                  id: m.id,
+                  content: extractMemoryContent(m) || m.content || '',
+                  gravity_score: m.gravity_score || 0.5,
+                  emotion: m.emotion || m.emotion_type || 'neutral',
+                  emotion_type: m.emotion_type || m.emotion || 'neutral',
+                  created_at: m.created_at,
+                  entities: m.entities || [],
+                  similarity: m.similarity || m.similarity_score || 0,
+                  similarity_score: m.similarity_score || m.similarity || 0,
+                  sources: m.sources || ['semantic'],
+                  metadata: m.metadata || {}
+                })),
+                count: recallMemories.length,
+                recall_strategy: recallResult.recall_strategy || 'hybrid',
+                streams: recallResult.streams || {
+                  semantic: recallMemories.filter(m => m.sources?.includes('semantic')).length,
+                  recent: recallMemories.filter(m => m.sources?.includes('recent')).length,
+                  entity: recallMemories.filter(m => m.sources?.includes('entity')).length
+                }
               });
             }
           }
@@ -818,7 +843,45 @@ async function handleSSEStream(params) {
             }
           }
         }
-        // STEP 4: Send completion event
+        // STEP 4: Send consciousness agent cards BEFORE main response
+        // ✨ SOUL PIPELINE: IVY's consciousness agents speak through visual cards
+        if (pattern_narrative && pattern_narrative.length > 50 && !pattern_narrative.includes('No clear patterns')) {
+          console.log('[SOUL PIPELINE] Sending pattern_observer agent card');
+          sendEvent({
+            type: 'consciousness_agent',
+            agent: 'pattern_observer',
+            title: 'Pattern Observer',
+            narrative: pattern_narrative,
+            icon: '🔄',
+            color: 'purple'
+          });
+        }
+
+        if (insight_narrative && insight_narrative.length > 40 && !insight_narrative.includes('No new insights')) {
+          console.log('[SOUL PIPELINE] Sending insight_illuminator agent card');
+          sendEvent({
+            type: 'consciousness_agent',
+            agent: 'insight_illuminator',
+            title: 'Insight Illuminator',
+            narrative: insight_narrative,
+            icon: '💡',
+            color: 'amber'
+          });
+        }
+
+        if (reflection_narrative && reflection_narrative.length > 20 && !reflection_narrative.includes('Reflecting on your journey')) {
+          console.log('[SOUL PIPELINE] Sending reflection_witness agent card');
+          sendEvent({
+            type: 'consciousness_agent',
+            agent: 'reflection_witness',
+            title: 'Reflection Witness',
+            narrative: reflection_narrative,
+            icon: '🪞',
+            color: 'blue'
+          });
+        }
+
+        // STEP 5: Send main response completion event
         const responseAnalysis = await analyzeResponse(fullContent, user_id, session_id);
         sendEvent({
           type: 'response_complete',

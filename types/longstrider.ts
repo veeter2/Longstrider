@@ -18,6 +18,7 @@ export interface LSMessage {
   thread_id: string
   memory_trace_id: string         // UUID for tracking related memories
   conversation_name: string
+  memory_id?: string             // PHASE 1: Links message to gravity_map.id for bidirectional flow
 
   // === CLASSIFICATION FIELDS ===
   type: 'user' | 'assistant' | 'memory' | 'system'
